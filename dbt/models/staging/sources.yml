@@ -1,0 +1,33 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: public
+    tables:
+      - name: raw_transactions
+        description: Valid payment events written by the Spark streaming job.
+        columns:
+          - name: event_id
+            tests: [unique, not_null]
+          - name: amount
+            tests: [not_null]
+          - name: currency
+            tests:
+              - relationships:
+                  to: source('raw', 'fx_rates')
+                  field: currency
+      - name: fx_rates
+        description: Fixed demo exchange rates to EUR.
+        columns:
+          - name: currency
+            tests: [unique, not_null]
+      - name: txn_volume_per_minute
+        description: Per-minute event-time aggregates written by Spark.
+        columns:
+          - name: window_start
+            tests: [unique, not_null]
+      - name: bad_events
+        description: Records rejected by the data-quality rules (dead letter table).
+        columns:
+          - name: error_reason
+            tests: [not_null]

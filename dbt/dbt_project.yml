@@ -1,0 +1,22 @@
+name: transactions
+version: "1.0.0"
+config-version: 2
+profile: transactions
+
+model-paths: ["models"]
+test-paths: ["tests"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+# Thresholds of the SIMULATED suspicious-activity rules (change them here).
+vars:
+  velocity_min_txns: 6          # payments by one account in 5 minutes
+  large_amount_eur: 3000        # single payment, in EUR
+  country_hop_min_countries: 3  # different countries for one account in 1 hour
+
+models:
+  transactions:
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table

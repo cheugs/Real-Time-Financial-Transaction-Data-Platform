@@ -1,0 +1,48 @@
+version: 2
+
+models:
+  - name: stg_transactions
+    description: Cleaned payment events with EUR amount and delay columns.
+    columns:
+      - name: event_id
+        tests: [unique, not_null]
+      - name: amount_eur
+        tests: [not_null]
+      - name: payment_method
+        tests: [not_null]
+      - name: status
+        tests:
+          - accepted_values:
+              values: [APPROVED, DECLINED, PENDING]
+      - name: schema_version
+        # newer versions (v3, ...) are allowed: unknown fields are ignored by Spark.
+        # tests/assert_schema_version_valid.sql checks it is >= 1
+        tests: [not_null]
+
+  - name: pipeline_health_per_minute
+    description: Processing latency, late events and schema versions per minute.
+    columns:
+      - name: minute
+        tests: [unique, not_null]
+
+  - name: status_per_minute
+    description: Number and EUR amount of transactions per status and minute.
+    columns:
+      - name: status
+        tests: [not_null]
+
+  - name: volume_by_currency
+    description: Volume per currency, in the original currency and in EUR.
+    columns:
+      - name: currency
+        tests: [unique, not_null]
+
+  - name: suspicious_activity
+    description: Simulated suspicious-activity indicators (rule based, demo only).
+    columns:
+      - name: rule
+        tests:
+          - accepted_values:
+              values: [high_velocity, large_amount, country_hopping]
+      - name: details
+        tests: [not_null]

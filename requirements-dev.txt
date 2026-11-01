@@ -1,0 +1,6 @@
+# For running the end-to-end tests and the benchmark from your laptop:
+#   pip install -r requirements-dev.txt
+pytest==8.3.3
+confluent-kafka==2.6.1
+psycopg2-binary==2.9.10
+pandas==2.2.3

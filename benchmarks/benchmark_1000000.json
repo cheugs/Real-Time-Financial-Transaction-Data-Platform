@@ -1,0 +1,46 @@
+{
+  "tag": "BMK1793541732",
+  "date": "2026-11-01 14:02 UTC",
+  "events_sent": 1000000,
+  "events_stored": 1000000,
+  "distinct_event_ids": 1000000,
+  "lost": 0,
+  "produce_seconds": 22.8,
+  "produce_events_per_s": 43940,
+  "end_to_end_seconds": 334.9,
+  "end_to_end_events_per_s": 2986,
+  "spark_avg_events_per_s": 4366,
+  "spark_max_events_per_s": 7782,
+  "spark_batches": 49,
+  "max_kafka_lag": 940005,
+  "latency_p50_s": 159.43,
+  "latency_p95_s": 280.9,
+  "latency_max_s": 312.17,
+  "resources": {
+    "kafka": {
+      "avg_cpu_percent": 23.8,
+      "max_cpu_percent": 209.3,
+      "max_memory_mib": 1074
+    },
+    "spark": {
+      "avg_cpu_percent": 111.4,
+      "max_cpu_percent": 751.0,
+      "max_memory_mib": 1798
+    },
+    "postgres": {
+      "avg_cpu_percent": 52.7,
+      "max_cpu_percent": 203.9,
+      "max_memory_mib": 734
+    },
+    "dbt": {
+      "avg_cpu_percent": 18.5,
+      "max_cpu_percent": 152.1,
+      "max_memory_mib": 181
+    },
+    "dashboard": {
+      "avg_cpu_percent": 3.1,
+      "max_cpu_percent": 27.8,
+      "max_memory_mib": 108
+    }
+  }
+}

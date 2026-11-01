@@ -1,0 +1,30 @@
+# Secrets: never commit the real .env (only .env.example)
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# dbt: generated files and the local user id
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+dbt/.user.yml
+
+# Spark files that local runs can create
+spark-warehouse/
+metastore_db/
+derby.log
+checkpoints/
+
+# Logs
+*.log
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

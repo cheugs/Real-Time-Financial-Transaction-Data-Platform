@@ -1,0 +1,185 @@
+# Real-Time Financial Transaction Data Platform
+# 1) cp .env.example .env      (set your own password)
+# 2) docker compose up -d --build
+#
+#   producer  --->  kafka  --->  spark (structured streaming)  --->  postgres  <---  dbt
+#                                                                       |
+#                                                                   dashboard (streamlit)
+#
+# All settings and passwords come from the .env file (never committed).
+
+x-postgres-env: &postgres-env
+  PG_HOST: postgres
+  PG_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+  PG_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+  PG_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+
+services:
+
+  # ---------------------------------------------------------------- Kafka
+  # Single Kafka broker in KRaft mode (no Zookeeper needed).
+  kafka:
+    image: apache/kafka:3.8.0
+    container_name: kafka
+    ports:
+      - "29092:29092"   # so you can connect from your laptop on localhost:29092
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # Topics are created explicitly by kafka-init (below), not by accident.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  # One-shot job that creates the topic with a known configuration.
+  #   3 partitions  -> up to 3 parallel consumers; key = account_id keeps
+  #                    each account's events in order on one partition
+  #   7-day retention -> events can be replayed for a week
+  kafka-init:
+    image: apache/kafka:3.8.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists
+        --topic payments --partitions 3 --replication-factor 1
+        --config retention.ms=604800000 &&
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --describe --topic payments
+    restart: "no"
+
+  # ---------------------------------------------------------------- Postgres
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------- Producer
+  # Generates synthetic payment events (with duplicates, late events,
+  # invalid records and two schema versions) and sends them to Kafka.
+  producer:
+    build: ./producer
+    container_name: producer
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    environment:
+      <<: *postgres-env           # only used by benchmark.py
+      KAFKA_BOOTSTRAP: kafka:9092
+      TOPIC: payments
+      EVENTS_PER_SECOND: ${EVENTS_PER_SECOND:-5}
+    volumes:
+      - ./benchmarks:/results     # benchmark results are written here
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------- Spark
+  # PySpark Structured Streaming job: Kafka -> Postgres.
+  # restart: if the job crashes it restarts and resumes from its checkpoint.
+  spark:
+    build: ./spark
+    container_name: spark
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *postgres-env
+      KAFKA_BOOTSTRAP: kafka:9092
+      TOPIC: payments
+      CHECKPOINT_DIR: /opt/checkpoints
+      WATERMARK: ${WATERMARK:-10 minutes}
+      WINDOW: ${WINDOW:-1 minute}
+      TRIGGER_INTERVAL: ${TRIGGER_INTERVAL:-5 seconds}
+      MAX_OFFSETS_PER_TRIGGER: ${MAX_OFFSETS_PER_TRIGGER:-20000}
+      SPARK_MASTER: ${SPARK_MASTER:-local[4]}
+      TZ: UTC
+    ports:
+      - "4040:4040"   # Spark UI
+    volumes:
+      - spark_checkpoints:/opt/checkpoints
+      - spark_ivy:/opt/ivy   # cache of downloaded Kafka connector jars
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------- dbt
+  # Re-builds the analytics models and runs the data tests every 30 seconds.
+  dbt:
+    image: ghcr.io/dbt-labs/dbt-postgres:1.8.2
+    container_name: dbt
+    depends_on:
+      postgres:
+        condition: service_healthy
+    working_dir: /usr/app
+    environment:
+      <<: *postgres-env
+      DBT_PROFILES_DIR: /usr/app
+    volumes:
+      - ./dbt:/usr/app
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["while true; do dbt run --quiet; dbt test --quiet; sleep 30; done"]
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------- Dashboard
+  dashboard:
+    build:
+      context: .                       # project root, to include .streamlit/config.toml
+      dockerfile: dashboard/Dockerfile
+    container_name: dashboard
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *postgres-env
+    ports:
+      - "8501:8501"
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------- Tests
+  # Unit + integration tests (need PySpark, so they run in the Spark image).
+  #   docker compose run --rm tests
+  tests:
+    build: ./spark
+    profiles: ["test"]
+    working_dir: /project
+    environment:
+      PYTHONPATH: /opt/spark/python:/opt/spark/python/lib/py4j-0.10.9.7-src.zip
+      TZ: UTC
+    volumes:
+      - ./:/project
+    entrypoint: ["python3", "-m", "pytest", "-p", "no:cacheprovider"]
+    command: ["tests/unit", "tests/integration", "-v"]
+
+volumes:
+  kafka_data:
+  pg_data:
+  spark_checkpoints:
+  spark_ivy:

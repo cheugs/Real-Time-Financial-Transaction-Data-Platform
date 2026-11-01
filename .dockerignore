@@ -1,0 +1,12 @@
+# Files Docker should not copy when an image is built from the project root
+.env
+.git
+.venv
+venv
+**/__pycache__
+.pytest_cache
+dbt/target
+dbt/logs
+benchmarks
+tests
+docs
