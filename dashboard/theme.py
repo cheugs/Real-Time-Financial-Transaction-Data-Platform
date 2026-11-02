@@ -46,7 +46,21 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {{ backgr
    otherwise the icon name, e.g. "keyboard_double_arrow_left", shows as text) */
 [data-testid="stAppViewContainer"] *:not([data-testid="stIconMaterial"]) {{ font-family: {BODY}; }}
 header[data-testid="stHeader"] {{ background: transparent; }}
-[data-testid="stToolbar"], footer, #MainMenu, .stDeployButton, [data-testid="stDecoration"] {{ display: none !important; }}
+/* hide Streamlit's menu and deploy button, but NOT the toolbar itself:
+   it holds the button that opens the sidebar (needed on phones) */
+footer, #MainMenu, .stDeployButton, [data-testid="stMainMenu"], [data-testid="stAppDeployButton"],
+[data-testid="stToolbarActions"], [data-testid="stDecoration"] {{ display: none !important; }}
+
+/* the "open sidebar" button becomes a green "Menu" pill */
+[data-testid="stExpandSidebarButton"], [data-testid="stSidebarCollapsedControl"] button {{
+  background: {GREEN} !important; color: white !important; border-radius: 999px !important;
+  padding: 4px 14px 4px 8px !important; gap: 4px; box-shadow: 0 6px 18px rgba(0,0,0,.15);
+}}
+[data-testid="stExpandSidebarButton"] [data-testid="stIconMaterial"],
+[data-testid="stSidebarCollapsedControl"] button [data-testid="stIconMaterial"] {{ color: white !important; }}
+[data-testid="stExpandSidebarButton"]::after, [data-testid="stSidebarCollapsedControl"] button::after {{
+  content: "Menu"; font-family: {BODY}; font-size: 15px; color: white;
+}}
 .block-container {{ padding: 2.2rem 3rem 5rem; max-width: 1320px; }}
 ::selection {{ background: {GREEN}; color: white; }}
 
@@ -169,7 +183,7 @@ table.ed {{ width: 100%; border-collapse: collapse; background: transparent; bor
 table.ed th, table.ed td {{ border: none !important; background: transparent; }}
 table.ed th {{ text-align: left; font-weight: 400; font-size: 13px; color: {MUTED}; padding: 6px 8px; border-bottom: 1px solid {INK} !important; }}
 table.ed td {{ font-size: 16px; padding: 9px 8px; border-bottom: 1px solid {LINE} !important; color: {INK}; }}
-table.ed td.r, table.ed th.r {{ text-align: right; font-variant-numeric: tabular-nums; }}
+table.ed td.r, table.ed th.r {{ text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }}
 table.ed tr {{ transition: background .25s; }}
 table.ed tbody tr:hover {{ background: rgba(0,132,106,.07); }}
 .tag {{ display: inline-block; font-size: 12.5px; padding: 1px 10px; border-radius: 999px; border: 1px solid currentColor; }}
@@ -196,11 +210,41 @@ table.ed tbody tr:hover {{ background: rgba(0,132,106,.07); }}
 }}
 
 /* small screens */
+/* tables scroll sideways on small screens instead of overflowing */
+.table-wrap {{ overflow-x: auto; -webkit-overflow-scrolling: touch; }}
+
+/* tablets and small laptops */
+@media (max-width: 1100px) {{
+  .block-container {{ padding: 2rem 1.6rem 4rem; }}
+  .kpi .value {{ font-size: 40px; }}
+  .kpi .value small {{ font-size: 18px; }}
+}}
+
+/* phones */
 @media (max-width: 760px) {{
+  .block-container {{ padding: 3.6rem 1rem 3rem; }}      /* room for the Menu button */
   .kpis {{ grid-template-columns: repeat(2, 1fr) !important; }}
-  .block-container {{ padding: 1.2rem 1rem 3rem; }}
+  .kpi {{ padding: 12px 10px 14px; min-width: 0; }}
+  .kpi:nth-child(2n) {{ border-right: none; }}
+  .kpi .value {{ font-size: 30px; overflow-wrap: anywhere; }}
+  .kpi .value small {{ font-size: 14px; }}
+  .kpi .label {{ font-size: 13px; }}
+  .kpi .sub {{ font-size: 12px; }}
   .float, .scribble {{ display: none; }}
-  .hero {{ min-height: 0; }}
+  .hero {{ min-height: 0; padding-top: 6px; }}
+  .hero .kicker {{ font-size: 20px; }}
+  .statement {{ margin: 28px auto 40px; }}
+  .page-head h1 {{ font-size: 46px; }}
+  .page-head p {{ font-size: 16px; }}
+  .section {{ flex-wrap: wrap; gap: 4px 12px; margin: 32px 0 10px; }}
+  .section h2 {{ font-size: 30px; }}
+  .section .note {{ margin-left: 0; width: 100%; }}
+  .notice {{ border-radius: 16px; font-size: 14px; padding: 10px 16px; }}
+  .rule .count {{ font-size: 52px; }}
+  table.ed td {{ font-size: 14px; padding: 8px 6px; white-space: nowrap; }}
+  .card-title {{ font-size: 21px; }}
+  /* phones have no mouse hover, so always show the « close button of the menu */
+  [data-testid="stSidebarCollapseButton"], [data-testid="stSidebarCollapseButton"] * {{ opacity: 1 !important; visibility: visible !important; }}
 }}
 </style>
 """
@@ -210,6 +254,7 @@ table.ed tbody tr:hover {{ background: rgba(0,132,106,.07); }}
 #    so the 5-second refresh doesn't replay the animation) and numbers count up.
 # 2. scrub: words of .statement light up one by one as you scroll.
 # 3. parallax: .float objects follow the mouse and drift with scrolling.
+# 4. on phones, the sidebar menu closes after a page is chosen.
 MOTION_JS = """
 <script>
 (function () {
@@ -286,6 +331,16 @@ MOTION_JS = """
   D.addEventListener('scroll', () => {
     if (ticking) return; ticking = true;
     P.requestAnimationFrame(() => { scrub(); ticking = false; });
+  }, true);
+
+  // 4. phones: close the menu by itself after a page is chosen
+  D.addEventListener('click', (e) => {
+    if (P.innerWidth > 760) return;
+    if (!e.target.closest('section[data-testid="stSidebar"] .st-key-page label')) return;
+    P.setTimeout(() => {
+      const close = D.querySelector('[data-testid="stSidebarCollapseButton"] button');
+      if (close) close.click();
+    }, 400);
   }, true);
 
   new P.MutationObserver(() => scan()).observe(D.body, {childList: true, subtree: true});
@@ -425,7 +480,8 @@ def table(df, columns, key):
             else:
                 cells.append(f"<td>{esc(v)}</td>")
         rows.append(f"<tr>{''.join(cells)}</tr>")
-    st.markdown(reveal(f'<table class="ed"><thead><tr>{head}</tr></thead><tbody>{"".join(rows)}</tbody></table>', key),
+    st.markdown(reveal(f'<div class="table-wrap"><table class="ed"><thead><tr>{head}</tr></thead>'
+                       f'<tbody>{"".join(rows)}</tbody></table></div>', key),
                 unsafe_allow_html=True)
 
 
@@ -470,7 +526,9 @@ def line(x, series, height=260, area=False):
 def hbar(labels, values, color=GREEN, height=220, text=None):
     """Horizontal bar chart with the value written next to each bar."""
     fig = go.Figure(go.Bar(y=labels, x=values, orientation="h", marker=dict(color=color),
-                           text=text, textposition="outside", textfont=dict(family=BODY, color=INK, size=13),
+                           text=text, textposition="auto",   # inside the bar if it fits, else outside (works on phones)
+                           insidetextfont=dict(family=BODY, color="white", size=13),
+                           outsidetextfont=dict(family=BODY, color=INK, size=13),
                            cliponaxis=False, hovertemplate="%{y}: %{x:,}<extra></extra>"))
     fig = style(fig, height, legend=False, hover="closest")
     fig.update_yaxes(autorange="reversed", showgrid=False)

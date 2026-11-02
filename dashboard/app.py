@@ -21,7 +21,7 @@ REFRESH_SECONDS = 5
 RANGES = {"15 min": 15, "1 hour": 60, "6 hours": 360, "24 hours": 1440}
 PAGES = ["Overview", "Transactions", "Pipeline", "Data quality", "Risk indicators"]
 
-st.set_page_config(page_title="Transaction Monitoring", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Transaction Monitoring", layout="wide", initial_sidebar_state="auto")   # open on desktop, closed on phones
 t.inject()
 
 
@@ -189,7 +189,9 @@ def transactions():
                 y=status["status"], x=status["txn_count"].astype(int), orientation="h",
                 marker=dict(color=[t.STATUS_COLORS.get(s, t.MUTED) for s in status["status"]]),
                 text=[f"{s.title()} · {100 * c / total:.1f}%" for s, c in zip(status["status"], status["txn_count"])],
-                textposition="outside", cliponaxis=False, textfont=dict(family=t.BODY, color=t.INK, size=13),
+                textposition="auto", cliponaxis=False,   # inside the bar if it fits (phones)
+                insidetextfont=dict(family=t.BODY, color="white", size=13),
+                outsidetextfont=dict(family=t.BODY, color=t.INK, size=13),
                 hovertemplate="%{y}: %{x:,} transactions<extra></extra>"))
             fig = t.style(fig, 210, legend=False, hover="closest")
             fig.update_yaxes(showgrid=False, autorange="reversed")
