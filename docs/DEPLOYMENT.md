@@ -48,6 +48,9 @@ $env:TARGET_DATABASE_URL = "PASTE-THE-NEON-CONNECTION-STRING-HERE"
 .venv\Scripts\python scripts\export_snapshot.py --hours 6
 ```
 
+If your stack was stopped for a while (for example overnight), add `--from-latest`: the 6 hours
+are then counted back from the newest stored event instead of from now.
+
 The script creates the tables on Neon, copies the last 6 hours of every table, saves the
 snapshot time, and runs dbt (models + 26 tests) on Neon. Six hours is about 110,000
 transactions, which is far below Neon's free storage limit.

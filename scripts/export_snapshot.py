@@ -11,6 +11,9 @@ dashboard reads this snapshot of a REAL run instead.
            bash:        export TARGET_DATABASE_URL="postgresql://user:password@host/dbname?sslmode=require"
     3. python scripts/export_snapshot.py --hours 6
 
+If the stack was stopped for a while, add --from-latest: the N hours are then
+counted back from the newest stored event instead of from now.
+
 Steps:
   - create the tables on the target (sql/init.sql) and empty them
   - copy the last N hours of every table with Postgres COPY (fast, no CSV files)
@@ -62,11 +65,15 @@ def local_connection():
                             user=env["POSTGRES_USER"], password=env["POSTGRES_PASSWORD"])
 
 
-def copy_table(source, target, table, column, hours):
-    """Copy one table (only the last `hours` hours) from source to target with COPY."""
-    where = f"where {column} >= now() - interval '{int(hours)} hours'" if column else ""
+def copy_table(source, target, table, column, hours, end):
+    """Copy one table (only the `hours` hours before `end`) from source to target with COPY."""
     buffer = io.StringIO()
     with source.cursor() as cur:
+        where = ""
+        if column:
+            # COPY can't take query parameters, so the timestamp is quoted safely with mogrify
+            where = cur.mogrify(f"where {column} > %s::timestamptz - interval '{int(hours)} hours' "
+                                f"and {column} <= %s", (end, end)).decode()
         cur.copy_expert(f"copy (select * from {table} {where}) to stdout", buffer)
     buffer.seek(0)
     with target.cursor() as cur:
@@ -92,6 +99,8 @@ def main():
     """Export the last N hours to the target database and build dbt there."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--hours", type=int, default=6, help="how many hours of data to copy")
+    parser.add_argument("--from-latest", action="store_true",
+                        help="count the hours back from the newest stored event instead of from now")
     args = parser.parse_args()
 
     target_url = os.getenv("TARGET_DATABASE_URL")
@@ -110,12 +119,13 @@ def main():
             cur.execute("truncate demo_meta, " + ", ".join(t for t, _ in TABLES))
 
         with source, target:
-            for table, column in TABLES:
-                rows = copy_table(source, target, table, column, args.hours)
-                print(f"  {table:24} {rows:>9,} rows")
+            # the snapshot ends now, or at the newest stored event (--from-latest)
             with source.cursor() as cur:
-                cur.execute("select now()")
+                cur.execute("select max(processed_at) from raw_transactions" if args.from_latest else "select now()")
                 snapshot_at = cur.fetchone()[0]
+            for table, column in TABLES:
+                rows = copy_table(source, target, table, column, args.hours, snapshot_at)
+                print(f"  {table:24} {rows:>9,} rows")
             with target.cursor() as cur:
                 cur.execute("insert into demo_meta values (%s, %s)",
                             (snapshot_at, f"last {args.hours} hours of the local pipeline"))
