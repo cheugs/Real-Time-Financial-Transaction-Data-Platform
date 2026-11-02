@@ -1,5 +1,7 @@
 # Putting the Dashboard Online (free)
 
+**Live:** https://cheugs-txn-monitor.streamlit.app/
+
 The full pipeline (Kafka + Spark) needs about 4 GB of memory, which is more than free hosting
 offers. So the online version works like this:
 

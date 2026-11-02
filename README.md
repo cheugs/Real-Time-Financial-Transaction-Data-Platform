@@ -6,7 +6,10 @@ events and turns them into transaction-monitoring numbers, shown on a live dashb
 > This is a data platform demo. All data is fake, and the "suspicious activity" indicators are
 > simple simulated rules. This is **not** a production fraud detector.
 
-**Live demo:** *(add your Streamlit link here after following [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md))*
+[![Open the live dashboard](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://cheugs-txn-monitor.streamlit.app/)
+
+**Live demo:** https://cheugs-txn-monitor.streamlit.app/  
+*A replay of a real pipeline run (the full Kafka + Spark stack runs locally with Docker, see section 13).*
 
 **Contents:**
 [1. Overview](#1-project-overview) ·
@@ -248,7 +251,7 @@ Open **http://localhost:8501**. The sidebar has five pages, and each page answer
 - The chart colours were checked for colour-blind readers.
 - Motion is switched off when the operating system asks for reduced motion.
 
-**Online version:** the full pipeline is too heavy for free hosting, so the online dashboard
+**Online version ([https://cheugs-txn-monitor.streamlit.app/](https://cheugs-txn-monitor.streamlit.app/)):** the full pipeline is too heavy for free hosting, so the online dashboard
 (Streamlit Community Cloud + Neon Postgres) shows a **snapshot of a real run** in *demo mode*.
 `scripts/export_snapshot.py` copies the data, and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) has every step.
 
