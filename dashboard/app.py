@@ -87,7 +87,7 @@ snapshot_text = pd.Timestamp(snapshot["snapshot_at"]).strftime("%B %d, %Y, %H:%M
 
 # ================================================================ sidebar
 with st.sidebar:
-    t.sidebar_brand(f"Snapshot of {snapshot_text}" if snapshot_text else None)
+    t.sidebar_brand(f"Replay of a run recorded {snapshot_text}" if snapshot_text else None)
     t.side_label("Navigate")
     page = st.radio("Page", PAGES, key="page", label_visibility="collapsed")
     t.side_label("Time range")
@@ -103,15 +103,15 @@ with st.sidebar:
         st.markdown(t.pill(state, text), unsafe_allow_html=True)
 
     side_health()
-    st.markdown('<div class="side-foot">Synthetic data · fixed demo FX rates · all amounts in EUR.<br>'
+    st.markdown('<div class="side-foot">Synthetic data · fixed demo FX rates · all amounts in EUR · all times in UTC.<br>'
                 'Risk indicators are simulated rules, not fraud detection.</div>', unsafe_allow_html=True)
 
 minutes = RANGES[range_label]
 
 if q.DEMO_MODE:
-    st.markdown(f'<div class="notice">Online demo: a snapshot of a real pipeline run'
+    st.markdown(f'<div class="notice">Online demo: a replay of a real pipeline run'
                 f'{" recorded on " + t.esc(snapshot_text) if snapshot_text else ""}. '
-                f'Times are counted back from that moment. Run it live with Docker (see the README).</div>',
+                f'Times are shifted so the newest data shows as now. Run it live with Docker (see the README).</div>',
                 unsafe_allow_html=True)
 
 

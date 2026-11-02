@@ -6,6 +6,8 @@ numbers on the dashboard match the database.
 Demo mode (DEMO_MODE=1, used for the online version): the database holds a
 snapshot of a real pipeline run, so "the last hour" is counted back from the
 moment the snapshot was taken (table demo_meta) instead of from now().
+The times shown on the charts are then moved forward by (now - snapshot time),
+so the newest data appears as "now". The dashboard says this in a banner.
 """
 
 import os
@@ -16,6 +18,8 @@ import psycopg2
 DEMO_MODE = os.getenv("DEMO_MODE", "0") == "1"
 # the "current time" used in every time filter
 NOW = "(select snapshot_at from demo_meta)" if DEMO_MODE else "now()"
+# added to the time columns we display (demo mode only)
+SHIFT = " + (now() - (select snapshot_at from demo_meta))" if DEMO_MODE else ""
 
 
 def connect():
@@ -79,17 +83,17 @@ def kpis_in_range(conn, minutes=60):
                count(*) filter (where status = 'DECLINED')        as declined,
                count(distinct account_id)                         as accounts
         from raw_transactions
-        where event_time > {NOW} - interval '{int(minutes)} minutes'
+        where event_time > {NOW} - interval '{int(minutes)} minutes' and event_time <= {NOW}
     """).iloc[0].to_dict()
 
 
 def volume_per_minute(conn, minutes=60):
     """Spark's per-minute aggregates for the last `minutes` minutes."""
     return read(conn, f"""
-        select window_start, txn_count, total_amount_eur, approved_count, declined_count,
+        select window_start{SHIFT} as window_start, txn_count, total_amount_eur, approved_count, declined_count,
                avg_arrival_delay_s, late_event_count
         from txn_volume_per_minute
-        where window_start > {NOW} - interval '{int(minutes)} minutes'
+        where window_start > {NOW} - interval '{int(minutes)} minutes' and window_start <= {NOW}
         order by window_start
     """)
 
@@ -97,10 +101,10 @@ def volume_per_minute(conn, minutes=60):
 def stream_progress(conn, minutes=60):
     """Spark progress reports: throughput and Kafka lag per micro-batch."""
     return read(conn, f"""
-        select batch_timestamp, processed_rows_per_second, input_rows_per_second,
+        select batch_timestamp{SHIFT} as batch_timestamp, processed_rows_per_second, input_rows_per_second,
                kafka_lag, batch_duration_ms
         from stream_progress
-        where query_name = 'raw_sink' and batch_timestamp > {NOW} - interval '{int(minutes)} minutes'
+        where query_name = 'raw_sink' and batch_timestamp > {NOW} - interval '{int(minutes)} minutes' and batch_timestamp <= {NOW}
         order by batch_timestamp
     """)
 
@@ -108,10 +112,10 @@ def stream_progress(conn, minutes=60):
 def pipeline_health(conn, minutes=60):
     """Latency, late events and schema versions per minute (dbt model)."""
     return read(conn, f"""
-        select minute, avg_processing_latency_s, max_processing_latency_s,
+        select minute{SHIFT} as minute, avg_processing_latency_s, max_processing_latency_s,
                avg_arrival_delay_s, late_events, schema_v1_events, schema_v2_events
         from analytics.pipeline_health_per_minute
-        where minute > {NOW} - interval '{int(minutes)} minutes'
+        where minute > {NOW} - interval '{int(minutes)} minutes' and minute <= {NOW}
         order by minute
     """)
 
@@ -121,7 +125,7 @@ def status_distribution(conn, minutes=60):
     return read(conn, f"""
         select status, sum(txn_count) as txn_count, round(sum(amount_eur), 2) as amount_eur
         from analytics.status_per_minute
-        where minute > {NOW} - interval '{int(minutes)} minutes'
+        where minute > {NOW} - interval '{int(minutes)} minutes' and minute <= {NOW}
         group by status order by status
     """)
 
@@ -142,9 +146,9 @@ def invalid_by_reason(conn):
 def suspicious(conn, minutes=60):
     """Simulated suspicious-activity indicators (dbt model)."""
     return read(conn, f"""
-        select rule, account_id, window_start, txn_count, total_amount_eur, details
+        select rule, account_id, window_start{SHIFT} as window_start, txn_count, total_amount_eur, details
         from analytics.suspicious_activity
-        where window_start > {NOW} - interval '{int(minutes)} minutes'
+        where window_start > {NOW} - interval '{int(minutes)} minutes' and window_start <= {NOW}
         order by window_start desc
     """)
 
@@ -152,7 +156,7 @@ def suspicious(conn, minutes=60):
 def pipeline_events(conn, limit=10):
     """Latest starts, restarts, failures and replays of the pipeline."""
     return read(conn, f"""
-        select logged_at, event_type, query_name, left(details, 200) as details
+        select logged_at{SHIFT} as logged_at, event_type, query_name, left(details, 200) as details
         from pipeline_events order by logged_at desc limit {int(limit)}
     """)
 

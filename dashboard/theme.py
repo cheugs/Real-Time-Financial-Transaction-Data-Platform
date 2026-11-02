@@ -58,13 +58,21 @@ section[data-testid="stSidebar"] > div {{ background: transparent; }}
 
 /* sidebar navigation = a radio group restyled as a list of big serif links */
 section[data-testid="stSidebar"] .nav div[role="radiogroup"] {{ gap: 2px; }}
-section[data-testid="stSidebar"] div[role="radiogroup"] label > div:first-child {{ display: none; }}
+/* hide the radio circles (older Streamlit: first div; newer: the div next to the label text) */
+section[data-testid="stSidebar"] div[role="radiogroup"] label > div:first-child,
+section[data-testid="stSidebar"] [data-testid="stRadioOption"] > div > div:not([data-testid="stMarkdownContainer"]) {{ display: none; }}
+/* newer Streamlit makes the radio list only as wide as its text: stretch it */
+section[data-testid="stSidebar"] .st-key-page,
+section[data-testid="stSidebar"] .st-key-page [data-testid="stRadio"],
+section[data-testid="stSidebar"] .st-key-page div[role="radiogroup"],
+section[data-testid="stSidebar"] .st-key-page div[role="radiogroup"] > div,
+section[data-testid="stSidebar"] .st-key-page [data-testid="stRadioOption"] {{ width: 100% !important; align-items: stretch !important; }}
 section[data-testid="stSidebar"] .st-key-page div[role="radiogroup"] label {{
   padding: 6px 0; border-bottom: 1px solid {LINE}; width: 100%; cursor: pointer;
   transition: padding-left .35s cubic-bezier(.2,.7,.2,1);
 }}
 section[data-testid="stSidebar"] .st-key-page div[role="radiogroup"] label p {{
-  font-family: {DISPLAY} !important; font-size: 25px; color: {MUTED}; transition: color .3s;
+  font-family: {DISPLAY} !important; font-size: 25px !important; line-height: 1.2; color: {MUTED}; transition: color .3s;
 }}
 section[data-testid="stSidebar"] .st-key-page div[role="radiogroup"] label:hover {{ padding-left: 10px; }}
 section[data-testid="stSidebar"] .st-key-page div[role="radiogroup"] label:hover p {{ color: {INK}; }}
@@ -76,13 +84,15 @@ section[data-testid="stSidebar"] div[role="radiogroup"] label {{ background: tra
 /* time range + rule filter = green pills */
 .st-key-range div[role="radiogroup"], .st-key-rule_filter div[role="radiogroup"] {{ flex-wrap: wrap; gap: 6px; }}
 .st-key-range div[role="radiogroup"] label > div:first-child,
-.st-key-rule_filter div[role="radiogroup"] label > div:first-child {{ display: none; }}
+.st-key-rule_filter div[role="radiogroup"] label > div:first-child,
+.st-key-range [data-testid="stRadioOption"] > div > div:not([data-testid="stMarkdownContainer"]),
+.st-key-rule_filter [data-testid="stRadioOption"] > div > div:not([data-testid="stMarkdownContainer"]) {{ display: none; }}
 .st-key-range div[role="radiogroup"] label, .st-key-rule_filter div[role="radiogroup"] label {{
   border: 1px solid {GREEN}; border-radius: 999px; padding: 3px 12px; margin: 0; cursor: pointer;
   transition: background .25s, color .25s, transform .25s;
 }}
 .st-key-range div[role="radiogroup"] label:hover, .st-key-rule_filter div[role="radiogroup"] label:hover {{ transform: translateY(-2px); }}
-.st-key-range div[role="radiogroup"] label p, .st-key-rule_filter div[role="radiogroup"] label p {{ font-size: 14px; color: {GREEN}; }}
+.st-key-range div[role="radiogroup"] label p, .st-key-rule_filter div[role="radiogroup"] label p {{ font-size: 14px !important; color: {GREEN}; }}
 .st-key-range div[role="radiogroup"] label:has(input:checked),
 .st-key-rule_filter div[role="radiogroup"] label:has(input:checked) {{ background: {GREEN} !important; }}
 .st-key-range div[role="radiogroup"] label:has(input:checked) p,
@@ -352,7 +362,7 @@ def hero():
 
 def statement(text):
     """Big editorial sentence whose words light up as you scroll."""
-    st.markdown(f'<p class="statement">{esc(text)}</p>', unsafe_allow_html=True)
+    st.markdown(f'<div class="statement">{esc(text)}</div>', unsafe_allow_html=True)
 
 
 def page_head(no, title, subtitle, scribble=""):

@@ -113,6 +113,7 @@ Then commit and push. Streamlit Cloud updates the app on every push by itself.
   before you send it to a recruiter.
 - **New snapshot:** run step 3 again at any time. The old snapshot is replaced.
 - **How demo mode works:** `DEMO_MODE=1` makes every time filter count back from
-  `demo_meta.snapshot_at` instead of `now()` (see `dashboard/queries.py`). The local
-  Docker version does not set it, so it stays live.
+  `demo_meta.snapshot_at` instead of `now()`, and moves the displayed times forward so the
+  newest data shows as "now" (a banner says so). See `dashboard/queries.py`. All times are
+  in UTC. The local Docker version does not set `DEMO_MODE`, so it stays live.
 - **Something wrong?** In Streamlit Cloud, open your app → **Manage app** (bottom right) to see the logs.
