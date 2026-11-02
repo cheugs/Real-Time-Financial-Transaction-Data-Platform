@@ -92,6 +92,51 @@ and broken data is set aside with a reason instead of being lost.
 | dbt | A staging view and mart tables (health, status, currency, suspicious activity). Data tests run every 30 s | [dbt/](dbt/) |
 | Dashboard | Live KPIs, volumes, latency, throughput, Kafka lag, data quality and indicators | [dashboard/](dashboard/) |
 
+### Data flow: the journey of one payment
+
+```mermaid
+flowchart LR
+    P["Producer<br/>fake payment as JSON"] -->|"key = account_id"| K[("Kafka<br/>topic: payments")]
+    K -->|"every 5 s, micro-batch"| S["Spark<br/>parse + validate + EUR"]
+    S -->|"invalid"| BAD[("bad_events<br/>with error_reason")]
+    S -->|"valid, duplicates skipped"| RAW[("raw_transactions")]
+    S -->|"valid, deduplicated,<br/>1-min event-time windows"| WIN[("txn_volume_per_minute")]
+    S -->|"progress, lag, restarts"| MON[("batch_log<br/>stream_progress<br/>pipeline_events")]
+    RAW -->|"every 30 s"| DBT["dbt<br/>models + tests"]
+    DBT --> AN[("analytics.*<br/>health, status, currency,<br/>suspicious activity")]
+    RAW --> D["Streamlit dashboard"]
+    WIN --> D
+    MON --> D
+    AN --> D
+```
+
+**Step by step:**
+
+1. **Created.** The producer makes a payment (for example 34.50 GBP from account `ACC0042`) and gives it a unique `event_id` and an `event_time`, which is when the payment happened.
+2. **Stored in Kafka.** The message goes to the `payments` topic. The key is `account_id`, so all payments of one account land in the same partition, in order. Kafka saves the arrival time (`kafka_time`) and keeps the message for 7 days, so it can be replayed.
+3. **Read by Spark.** Every 5 seconds Spark reads the new messages as one micro-batch. It saves its position (the Kafka offsets) in a checkpoint, so after a crash it continues from the same place.
+4. **Checked and converted.** Spark turns the JSON into columns, checks the data-quality rules (section 7), and converts the amount to EUR with the `fx_rates` table.
+5. **Split into two streams:**
+   - **Raw path:** every valid payment is written to `raw_transactions` once. A copy with the same `event_id` is skipped and counted in `batch_log`. An invalid record goes to `bad_events` with the reason.
+   - **Window path:** valid payments are deduplicated and counted per 1-minute window of **event time**. A late payment (up to 10 minutes) updates the minute it belongs to, and the result is upserted into `txn_volume_per_minute`.
+6. **Monitored.** Each batch writes its numbers to `batch_log`, Spark's progress (throughput, Kafka lag) goes to `stream_progress`, and starts, restarts and replays go to `pipeline_events`.
+7. **Modelled by dbt.** Every 30 seconds dbt rebuilds the `analytics` tables from the raw data (pipeline health, status mix, currency mix, simulated suspicious-activity indicators) and runs its 26 data tests.
+8. **Shown.** The dashboard reads Postgres every 5 seconds. A payment is usually on the dashboard about **2–5 seconds** after it reaches Kafka.
+
+**Where a record can end up:**
+
+| The record is… | Where it goes | Counted in windows? |
+|----------------|---------------|---------------------|
+| Valid and new | `raw_transactions` + its 1-minute window | Yes |
+| A duplicate (same `event_id`) | Skipped, counted in `batch_log.duplicates_skipped` | No (already counted) |
+| Invalid or malformed | `bad_events`, with `error_reason` | No |
+| Late, but within 10 minutes | `raw_transactions` + the window of the minute it happened | Yes |
+| Later than 10 minutes | `raw_transactions` only (kept, never lost) | No (window already closed) |
+
+**Online demo flow:** the [live dashboard](https://cheugs-txn-monitor.streamlit.app/) cannot run Kafka and Spark for free,
+so `scripts/export_snapshot.py` copies a few hours of a real run from the local Postgres to a cloud
+Postgres (Neon), and the online dashboard reads that copy in demo mode (section 10).
+
 **Traceability:**
 - Every row in `raw_transactions` keeps its `kafka_partition` and `kafka_offset`, so you can trace it back to the exact Kafka message. Invalid messages in `bad_events` are keyed by the same Kafka position.
 - `batch_log` records every Spark micro-batch, and `stream_progress` records every progress report (with its `run_id`).
