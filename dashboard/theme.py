@@ -42,7 +42,9 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {{ backgr
                     linear-gradient(90deg, rgba(0,0,0,.055) 1px, transparent 1px);
   background-size: 96px 96px; background-position: -1px -1px;
 }}
-[data-testid="stAppViewContainer"] * {{ font-family: {BODY}; }}
+/* serif text everywhere, except Streamlit's icons (they need their own icon font,
+   otherwise the icon name, e.g. "keyboard_double_arrow_left", shows as text) */
+[data-testid="stAppViewContainer"] *:not([data-testid="stIconMaterial"]) {{ font-family: {BODY}; }}
 header[data-testid="stHeader"] {{ background: transparent; }}
 [data-testid="stToolbar"], footer, #MainMenu, .stDeployButton, [data-testid="stDecoration"] {{ display: none !important; }}
 .block-container {{ padding: 2.2rem 3rem 5rem; max-width: 1320px; }}
