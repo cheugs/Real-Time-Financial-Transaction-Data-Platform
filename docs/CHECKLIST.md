@@ -1,145 +1,147 @@
-# DE02 Acceptance Checklist: Evidence
+# Checklist d'acceptation DE02 : preuves
 
-For each item, this table says where to find the proof in the project.
-Status: ✅ done and verified · 🟡 done but not yet verified.
+**Français** · [English](en/CHECKLIST.md)
 
-Test files:
-- `unit`: tests/unit/
-- `integ`: tests/integration/test_streaming_scenarios.py
-- `e2e`: tests/e2e/test_pipeline.py
-- `dbt`: dbt/models/**/schema.yml and dbt/tests/
+Pour chaque critère, ce tableau indique où trouver la preuve dans le projet.
+<img src="assets/icons/check.svg" width="16" alt="fait"> = fait et vérifié. Les 83 critères sont remplis.
 
-## 1. Functional correctness
+Fichiers de tests :
+- `unit` : tests/unit/
+- `integ` : tests/integration/test_streaming_scenarios.py
+- `e2e` : tests/e2e/test_pipeline.py
+- `dbt` : dbt/models/**/schema.yml et dbt/tests/
 
-| Item | | Evidence |
+## 1. Exactitude fonctionnelle
+
+| Critère | | Preuve |
 |---|---|---|
-| Realistic financial attributes | ✅ | `producer/generator.py`: account, merchant, amount (log-normal, local currency), currency by country, status, timestamps. `unit/test_generator.py::test_events_have_valid_financial_attributes` |
-| Unique identifier | ✅ | UUID `event_id`, PK in `raw_transactions`. `test_every_event_has_a_unique_id`, dbt `unique` |
-| Valid amounts, currencies, timestamps | ✅ | Spark validation + Postgres CHECK/FK + dbt `assert_amounts_are_valid`, `assert_no_future_events` |
-| Ingested through Kafka | ✅ | `e2e::test_valid_events_flow_from_kafka_to_postgres` |
-| Spark processes continuously | ✅ | Structured Streaming, 5 s trigger. `stream_progress` table |
-| Aggregations mathematically correct | ✅ | `unit/test_aggregation.py` (counts, EUR sums, boundaries, status, delays) |
-| PostgreSQL stores expected results | ✅ | e2e tests compare stored rows with sent events |
-| Dashboard matches database | ✅ | `e2e::test_dashboard_figures_match_the_database` (same SQL module, one snapshot) |
+| Attributs financiers réalistes | <img src="assets/icons/check.svg" width="16" alt="fait"> | `producer/generator.py` : compte, commerçant, montant (loi log-normale, devise locale), devise selon le pays, statut, horodatages. `unit/test_generator.py::test_events_have_valid_financial_attributes` |
+| Identifiant unique | <img src="assets/icons/check.svg" width="16" alt="fait"> | `event_id` UUID, clé primaire dans `raw_transactions`. `test_every_event_has_a_unique_id`, test dbt `unique` |
+| Montants, devises et horodatages valides | <img src="assets/icons/check.svg" width="16" alt="fait"> | Validation Spark + CHECK/clé étrangère Postgres + tests dbt `assert_amounts_are_valid`, `assert_no_future_events` |
+| Ingestion par Kafka | <img src="assets/icons/check.svg" width="16" alt="fait"> | `e2e::test_valid_events_flow_from_kafka_to_postgres` |
+| Traitement continu par Spark | <img src="assets/icons/check.svg" width="16" alt="fait"> | Structured Streaming, déclenchement toutes les 5 s. Table `stream_progress` |
+| Agrégations mathématiquement justes | <img src="assets/icons/check.svg" width="16" alt="fait"> | `unit/test_aggregation.py` (nombres, sommes en EUR, bornes des fenêtres, statuts, délais) |
+| PostgreSQL stocke les résultats attendus | <img src="assets/icons/check.svg" width="16" alt="fait"> | Les tests e2e comparent les lignes stockées aux événements envoyés |
+| Le tableau de bord correspond à la base | <img src="assets/icons/check.svg" width="16" alt="fait"> | `e2e::test_dashboard_figures_match_the_database` (même module SQL, une seule photo de la base) |
 
-## 2. Data quality and integrity
+## 2. Qualité et intégrité des données
 
-| Item | | Evidence |
+| Critère | | Preuve |
 |---|---|---|
-| Missing mandatory fields detected | ✅ | `missing_*` reasons. `unit/test_validation.py` |
-| Invalid amounts rejected | ✅ | `non_positive_amount`, `amount_too_large` + DB `CHECK amount > 0` |
-| Invalid timestamps handled | ✅ | `invalid_event_time`, `event_time_in_future` |
-| Duplicate IDs detected | ✅ | PK + `batch_log.duplicates_skipped`. `e2e::test_duplicate_events_are_stored_once` |
-| Duplicates don't inflate aggregates | ✅ | `dropDuplicates`. `test_duplicates_do_not_inflate_aggregates`, `integ::test_duplicates_across_batches...`, dbt `assert_windows_not_inflated` |
-| Invalid records isolated | ✅ | `bad_events` with `error_reason`. `e2e::test_invalid_events_are_isolated_with_a_reason` |
-| Transformations preserve integrity | ✅ | dbt tests on staging/marts (unique, not_null, relationships, EUR = amount × rate) |
-| DQ rules automatically tested | ✅ | dbt tests every 30 s + pytest + CI |
+| Champs obligatoires manquants détectés | <img src="assets/icons/check.svg" width="16" alt="fait"> | Motifs `missing_*`. `unit/test_validation.py` |
+| Montants invalides rejetés | <img src="assets/icons/check.svg" width="16" alt="fait"> | `non_positive_amount`, `amount_too_large` + `CHECK amount > 0` dans la base |
+| Horodatages invalides gérés | <img src="assets/icons/check.svg" width="16" alt="fait"> | `invalid_event_time`, `event_time_in_future` |
+| Identifiants en double détectés | <img src="assets/icons/check.svg" width="16" alt="fait"> | Clé primaire + `batch_log.duplicates_skipped`. `e2e::test_duplicate_events_are_stored_once` |
+| Les doublons ne gonflent pas les agrégats | <img src="assets/icons/check.svg" width="16" alt="fait"> | `dropDuplicates`. `test_duplicates_do_not_inflate_aggregates`, `integ::test_duplicates_across_batches...`, test dbt `assert_windows_not_inflated` |
+| Enregistrements invalides isolés | <img src="assets/icons/check.svg" width="16" alt="fait"> | `bad_events` avec `error_reason`. `e2e::test_invalid_events_are_isolated_with_a_reason` |
+| Les transformations préservent l'intégrité | <img src="assets/icons/check.svg" width="16" alt="fait"> | Tests dbt sur staging/marts (unicité, non-nullité, relations, EUR = montant × taux) |
+| Règles de qualité testées automatiquement | <img src="assets/icons/check.svg" width="16" alt="fait"> | Tests dbt toutes les 30 s + pytest + CI |
 
-## 3. Real-time processing
+## 3. Traitement en temps réel
 
-| Item | | Evidence |
+| Critère | | Preuve |
 |---|---|---|
-| No batch execution needed | ✅ | Long-running streaming queries |
-| Event time vs processing time | ✅ | `event_time`, `kafka_time`, `processed_at` columns; windows use `event_time` |
-| Out-of-order events | ✅ | `integ::test_out_of_order_events_land_in_the_right_window` |
-| Late events with watermarks | ✅ | `integ::test_late_event_within_watermark...`, `...beyond_watermark...`, `e2e::test_late_event...` |
-| Window aggregations accurate | ✅ | `unit/test_aggregation.py`, integration tests |
-| Latency measurable | ✅ | `processed_at - kafka_time`. Dashboard KPI + chart. Benchmark p50/p95 |
-| Throughput measurable | ✅ | `stream_progress.processed_rows_per_second`. Dashboard. Benchmark |
-| Kafka consumer lag observable | ✅ | `stream_progress.kafka_lag` (latest offset − processed offset). Dashboard KPI + chart |
+| Pas besoin d'exécution par lots | <img src="assets/icons/check.svg" width="16" alt="fait"> | Requêtes de streaming qui tournent en continu |
+| Temps d'événement distinct du temps de traitement | <img src="assets/icons/check.svg" width="16" alt="fait"> | Colonnes `event_time`, `kafka_time`, `processed_at` ; les fenêtres utilisent `event_time` |
+| Événements dans le désordre | <img src="assets/icons/check.svg" width="16" alt="fait"> | `integ::test_out_of_order_events_land_in_the_right_window` |
+| Événements en retard gérés par watermark | <img src="assets/icons/check.svg" width="16" alt="fait"> | `integ::test_late_event_within_watermark...`, `...beyond_watermark...`, `e2e::test_late_event...` |
+| Agrégations par fenêtre exactes | <img src="assets/icons/check.svg" width="16" alt="fait"> | `unit/test_aggregation.py`, tests d'intégration |
+| Latence mesurable | <img src="assets/icons/check.svg" width="16" alt="fait"> | `processed_at - kafka_time`. KPI + graphique du tableau de bord. Test de performance (médiane/p95) |
+| Débit mesurable | <img src="assets/icons/check.svg" width="16" alt="fait"> | `stream_progress.processed_rows_per_second`. Tableau de bord. Test de performance |
+| Retard du consommateur Kafka observable | <img src="assets/icons/check.svg" width="16" alt="fait"> | `stream_progress.kafka_lag` (dernier offset − offset traité). KPI + graphique du tableau de bord |
 
-## 4. Reliability and fault tolerance
+## 4. Fiabilité et tolérance aux pannes
 
-| Item | | Evidence |
+| Critère | | Preuve |
 |---|---|---|
-| Recovers after restarts | ✅ | `restart: unless-stopped` + checkpoints. `e2e::test_spark_restart_does_not_lose_or_duplicate_events` |
-| Checkpoints preserve progress | ✅ | `integ::test_restart_from_checkpoint_keeps_state` |
-| Failed attempts retried | ✅ | `with_retry()` for DB writes, then the batch is re-run from the checkpoint. `e2e::test_postgres_outage...` |
-| Duplicate processing doesn't corrupt results | ✅ | Idempotent upserts; `batch_log` in the same transaction |
-| Historical events replayable | ✅ | `scripts/replay.*`. `e2e::test_replay_rebuilds_the_same_events` |
-| No silent loss on recovery | ✅ | `failOnDataLoss=true`; e2e restart/outage tests count every event |
-| Schema changes don't break processing | ✅ | v1/v2/v3 tests in unit, integration and e2e |
-| Delivery guarantees documented and tested | ✅ | README "Delivery guarantees" table + the tests above |
+| Reprise après redémarrage | <img src="assets/icons/check.svg" width="16" alt="fait"> | `restart: unless-stopped` + checkpoints. `e2e::test_spark_restart_does_not_lose_or_duplicate_events` |
+| Les checkpoints conservent la progression | <img src="assets/icons/check.svg" width="16" alt="fait"> | `integ::test_restart_from_checkpoint_keeps_state` |
+| Les traitements en échec sont réessayés | <img src="assets/icons/check.svg" width="16" alt="fait"> | `with_retry()` pour les écritures en base, puis le batch est relancé depuis le checkpoint. `e2e::test_postgres_outage...` |
+| Un traitement en double ne corrompt pas la base | <img src="assets/icons/check.svg" width="16" alt="fait"> | Upserts idempotents ; `batch_log` dans la même transaction |
+| Événements passés rejouables | <img src="assets/icons/check.svg" width="16" alt="fait"> | `scripts/replay.*`. `e2e::test_replay_rebuilds_the_same_events` |
+| Pas de perte silencieuse à la reprise | <img src="assets/icons/check.svg" width="16" alt="fait"> | `failOnDataLoss=true` ; les tests e2e de redémarrage et de panne comptent chaque événement |
+| Les changements de schéma ne cassent pas le traitement | <img src="assets/icons/check.svg" width="16" alt="fait"> | Tests v1/v2/v3 en unitaire, intégration et e2e |
+| Garanties de livraison documentées et testées | <img src="assets/icons/check.svg" width="16" alt="fait"> | Tableau « Garanties de livraison » du README + les tests ci-dessus |
 
-## 5. Data architecture
+## 5. Architecture des données
 
-| Item | | Evidence |
+| Critère | | Preuve |
 |---|---|---|
-| Clear responsibilities | ✅ | README component table. Logic (`transformations.py`) separated from I/O (`streaming_job.py`) |
-| Kafka topics/partitions configured | ✅ | `kafka-init`: 3 partitions, key = account_id, 7-day retention, auto-create off |
-| Data flows traceable | ✅ | `kafka_partition`/`kafka_offset` on every row; `batch_log`, `stream_progress`, `pipeline_events` |
-| Raw vs transformed separated | ✅ | `public` (raw/streaming) vs `analytics` (dbt) schemas |
-| Tables properly structured | ✅ | PKs, NOT NULL, CHECK, FK to `fx_rates` (`sql/init.sql`) |
-| Indexes justified | ✅ | Comments in `init.sql` + README "Indexes" |
-| dbt modular | ✅ | staging → marts, sources, vars, singular tests |
-| Supports future extensions | ✅ | New rules = new dbt model/var; new fields = schema field; config in `.env` |
+| Rôles des composants clairement définis | <img src="assets/icons/check.svg" width="16" alt="fait"> | Tableau des composants du README. Logique (`transformations.py`) séparée des entrées/sorties (`streaming_job.py`) |
+| Topics et partitions Kafka bien configurés | <img src="assets/icons/check.svg" width="16" alt="fait"> | `kafka-init` : 3 partitions, clé = account_id, rétention de 7 jours, création automatique désactivée |
+| Flux de données traçables | <img src="assets/icons/check.svg" width="16" alt="fait"> | `kafka_partition`/`kafka_offset` sur chaque ligne ; `batch_log`, `stream_progress`, `pipeline_events` |
+| Données brutes et transformées séparées | <img src="assets/icons/check.svg" width="16" alt="fait"> | Schémas `public` (brut/flux) et `analytics` (dbt) |
+| Tables PostgreSQL bien structurées | <img src="assets/icons/check.svg" width="16" alt="fait"> | Clés primaires, NOT NULL, CHECK, clé étrangère vers `fx_rates` (`sql/init.sql`) |
+| Index justifiés | <img src="assets/icons/check.svg" width="16" alt="fait"> | Commentaires dans `init.sql` + partie « Index » du README |
+| Transformations dbt modulaires | <img src="assets/icons/check.svg" width="16" alt="fait"> | staging → marts, sources, variables, tests spécifiques |
+| L'architecture permet des évolutions | <img src="assets/icons/check.svg" width="16" alt="fait"> | Nouvelle règle = nouveau modèle/variable dbt ; nouveau champ = champ du schéma ; configuration dans `.env` |
 
-## 6. Performance and scalability
+## 6. Performance et passage à l'échelle
 
-See [PERFORMANCE.md](PERFORMANCE.md).
+Voir [PERFORMANCE.md](PERFORMANCE.md).
 
-| Item | | Evidence |
+| Critère | | Preuve |
 |---|---|---|
-| ≥ 10,000 transactions | ✅ | Covered by the 100k and 1M runs |
-| Tested with 100,000 | ✅ | `benchmarks/benchmark_100000.json` |
-| 1-million benchmark attempted | ✅ | `benchmarks/benchmark_1000000.json` |
-| Throughput in events/s | ✅ | Produce, Spark and end-to-end events/s |
-| Latency measured | ✅ | p50 / p95 / max |
-| Resources monitored | ✅ | `docker stats` CPU/memory per container (in the JSON) |
-| Bottlenecks identified | ✅ | PERFORMANCE.md "Bottlenecks" |
-| Results documented | ✅ | PERFORMANCE.md |
+| Au moins 10 000 transactions | <img src="assets/icons/check.svg" width="16" alt="fait"> | Couvert par les tests à 100 000 et 1 million |
+| Testé avec 100 000 transactions | <img src="assets/icons/check.svg" width="16" alt="fait"> | `benchmarks/benchmark_100000.json` |
+| Test à 1 million d'événements tenté | <img src="assets/icons/check.svg" width="16" alt="fait"> | `benchmarks/benchmark_1000000.json` |
+| Débit mesuré en événements/s | <img src="assets/icons/check.svg" width="16" alt="fait"> | Producteur, Spark et bout en bout |
+| Latence mesurée | <img src="assets/icons/check.svg" width="16" alt="fait"> | Médiane / p95 / max |
+| Consommation des ressources suivie | <img src="assets/icons/check.svg" width="16" alt="fait"> | CPU/mémoire de chaque conteneur avec `docker stats` (dans le JSON) |
+| Goulots d'étranglement identifiés | <img src="assets/icons/check.svg" width="16" alt="fait"> | Partie « Goulots d'étranglement » de PERFORMANCE.md |
+| Résultats documentés | <img src="assets/icons/check.svg" width="16" alt="fait"> | PERFORMANCE.md |
 
-## 7. Monitoring and observability
+## 7. Supervision et observabilité
 
-| Item | | Evidence |
+| Critère | | Preuve |
 |---|---|---|
-| Ingestion monitored | ✅ | Dashboard KPIs, `batch_log`, input rate |
-| Processing failures logged | ✅ | `pipeline_events.query_failed` + container logs (if Postgres itself is down, only the container log has it) |
-| Kafka lag monitored | ✅ | Dashboard KPI + chart |
-| Processing delays monitored | ✅ | Latency charts, arrival delay, late events |
-| Duplicates counted | ✅ | "Duplicates skipped" KPI |
-| Invalid events counted | ✅ | KPI + "invalid by reason" table |
-| Recovery traceable | ✅ | `pipeline_events` (fresh_start / restart_from_checkpoint / replay_requested); `run_id` in `stream_progress`; "Spark restarts" KPI |
-| Logs sufficient | ✅ | Python `logging` with batch id, valid/new/duplicate/invalid counts, retries |
+| Ingestion supervisée | <img src="assets/icons/check.svg" width="16" alt="fait"> | KPI du tableau de bord, `batch_log`, débit d'entrée |
+| Échecs de traitement enregistrés | <img src="assets/icons/check.svg" width="16" alt="fait"> | `pipeline_events.query_failed` + logs du conteneur (si Postgres lui-même est arrêté, seul le log du conteneur le contient) |
+| Retard Kafka supervisé | <img src="assets/icons/check.svg" width="16" alt="fait"> | KPI + graphique du tableau de bord |
+| Délais de traitement supervisés | <img src="assets/icons/check.svg" width="16" alt="fait"> | Graphiques de latence, délai d'arrivée, événements en retard |
+| Doublons comptés | <img src="assets/icons/check.svg" width="16" alt="fait"> | KPI « Duplicates skipped » |
+| Événements invalides comptés | <img src="assets/icons/check.svg" width="16" alt="fait"> | KPI + tableau « invalides par motif » |
+| Reprises traçables | <img src="assets/icons/check.svg" width="16" alt="fait"> | `pipeline_events` (fresh_start / restart_from_checkpoint / replay_requested) ; `run_id` dans `stream_progress` ; KPI « Spark restarts » |
+| Logs suffisants pour analyser une panne | <img src="assets/icons/check.svg" width="16" alt="fait"> | `logging` Python avec numéro de batch, nombres valides/nouveaux/doublons/invalides, nouvelles tentatives |
 
-## 8. Financial analytics
+## 8. Analyse financière
 
-| Item | | Evidence |
+| Critère | | Preuve |
 |---|---|---|
-| Volumes | ✅ | `txn_volume_per_minute.txn_count` |
-| Total amounts | ✅ | `total_amount_eur` (always in one currency) |
-| Distribution by status | ✅ | `analytics.status_per_minute`, approved/declined counts per window |
-| Volumes by time window | ✅ | 1-minute event-time windows |
-| Currency differences handled | ✅ | `fx_rates` + `amount_eur`; `volume_by_currency`; large-amount rule in EUR. `test_mixed_currencies_are_summed_in_eur` |
-| Indicators generated | ✅ | `analytics.suspicious_activity` |
-| Explainable rules | ✅ | Each row has a `details` sentence. Thresholds are dbt vars |
-| No fraud claims | ✅ | README, dashboard caption, SQL comments |
+| Volumes de transactions calculés | <img src="assets/icons/check.svg" width="16" alt="fait"> | `txn_volume_per_minute.txn_count` |
+| Montants totaux calculés | <img src="assets/icons/check.svg" width="16" alt="fait"> | `total_amount_eur` (toujours dans une seule devise) |
+| Répartition par statut disponible | <img src="assets/icons/check.svg" width="16" alt="fait"> | `analytics.status_per_minute`, nombres d'acceptés/refusés par fenêtre |
+| Volumes par fenêtre de temps disponibles | <img src="assets/icons/check.svg" width="16" alt="fait"> | Fenêtres d'une minute en temps d'événement |
+| Différences de devises bien gérées | <img src="assets/icons/check.svg" width="16" alt="fait"> | `fx_rates` + `amount_eur` ; `volume_by_currency` ; règle du montant élevé en EUR. `test_mixed_currencies_are_summed_in_eur` |
+| Indicateurs simulés d'activité suspecte générés | <img src="assets/icons/check.svg" width="16" alt="fait"> | `analytics.suspicious_activity` |
+| Règles des indicateurs explicables | <img src="assets/icons/check.svg" width="16" alt="fait"> | Chaque ligne contient une phrase `details`. Les seuils sont des variables dbt |
+| Aucune prétention de vraie détection de fraude | <img src="assets/icons/check.svg" width="16" alt="fait"> | README, légende du tableau de bord, commentaires SQL |
 
-## 9. Testing and validation
+## 9. Tests et validation
 
-| Item | | Evidence |
+| Critère | | Preuve |
 |---|---|---|
-| Unit tests pass | ✅ | 34 tests in `tests/unit` |
-| Integration tests pass | ✅ | 7 streaming scenarios in `tests/integration` |
-| End-to-end tests pass | ✅ | 11 tests in `tests/e2e` (9 normal + 2 slow) |
-| Duplicate scenarios | ✅ | unit + integration + e2e |
-| Late-event scenarios | ✅ | integration + e2e |
-| Out-of-order scenarios | ✅ | integration |
-| Application failure scenarios | ✅ | Spark restart, Postgres outage (e2e), checkpoint restart (integration) |
-| Replay scenarios | ✅ | `e2e::test_replay_rebuilds_the_same_events` |
-| Schema evolution scenarios | ✅ | unit + integration + e2e (v1, v2, unknown v3, missing version) |
-| Dashboard validated against DB | ✅ | `e2e::test_dashboard_figures_match_the_database` |
+| Les tests unitaires passent | <img src="assets/icons/check.svg" width="16" alt="fait"> | 34 tests dans `tests/unit` |
+| Les tests d'intégration passent | <img src="assets/icons/check.svg" width="16" alt="fait"> | 7 scénarios de streaming dans `tests/integration` |
+| Les tests de bout en bout passent | <img src="assets/icons/check.svg" width="16" alt="fait"> | 11 tests dans `tests/e2e` (9 normaux + 2 lents) |
+| Scénarios de doublons testés | <img src="assets/icons/check.svg" width="16" alt="fait"> | Unitaire + intégration + e2e |
+| Scénarios de retards testés | <img src="assets/icons/check.svg" width="16" alt="fait"> | Intégration + e2e |
+| Scénarios de désordre testés | <img src="assets/icons/check.svg" width="16" alt="fait"> | Intégration |
+| Scénarios de panne testés | <img src="assets/icons/check.svg" width="16" alt="fait"> | Redémarrage de Spark, panne de Postgres (e2e), reprise depuis le checkpoint (intégration) |
+| Scénarios de rejeu testés | <img src="assets/icons/check.svg" width="16" alt="fait"> | `e2e::test_replay_rebuilds_the_same_events` |
+| Scénarios d'évolution du schéma testés | <img src="assets/icons/check.svg" width="16" alt="fait"> | Unitaire + intégration + e2e (v1, v2, v3 inconnue, version absente) |
+| Chiffres du tableau de bord validés avec la base | <img src="assets/icons/check.svg" width="16" alt="fait"> | `e2e::test_dashboard_figures_match_the_database` |
 
-## 10. Engineering and professional quality
+## 10. Qualité technique et professionnelle
 
-| Item | | Evidence |
+| Critère | | Preuve |
 |---|---|---|
-| Modular, maintainable | ✅ | generator / producer / transformations / streaming_job / queries / app |
-| Configuration externalized | ✅ | `.env`, dbt vars |
-| No secrets in git | ✅ | `.env` in `.gitignore`; only `.env.example` with a placeholder |
-| Reproducible Docker services | ✅ | Pinned image and package versions; one `docker compose up` |
-| CI runs tests | 🟡 | `.github/workflows/ci.yml` is written, but it only runs once the repo is on GitHub (not run yet) |
-| README explains architecture | ✅ | README |
-| Decisions and trade-offs documented | ✅ | README "Design decisions and trade-offs" |
-| Limitations acknowledged | ✅ | README "Known limitations" |
-| Reproducible by another developer | ✅ | `cp .env.example .env && docker compose up -d --build` |
+| Code modulaire et maintenable | <img src="assets/icons/check.svg" width="16" alt="fait"> | generator / producer / transformations / streaming_job / queries / app |
+| Configuration externalisée | <img src="assets/icons/check.svg" width="16" alt="fait"> | `.env`, variables dbt |
+| Aucun secret versionné sur GitHub | <img src="assets/icons/check.svg" width="16" alt="fait"> | `.env` dans `.gitignore` ; seul `.env.example` avec une valeur d'exemple |
+| Services Docker reproductibles | <img src="assets/icons/check.svg" width="16" alt="fait"> | Versions des images et des paquets fixées ; un seul `docker compose up` |
+| La CI lance les tests automatiquement | <img src="assets/icons/check.svg" width="16" alt="fait"> | `.github/workflows/ci.yml` lance les tests unitaires, d'intégration et de bout en bout à chaque push, et passe à chaque commit |
+| Le README explique l'architecture | <img src="assets/icons/check.svg" width="16" alt="fait"> | README |
+| Choix techniques et compromis documentés | <img src="assets/icons/check.svg" width="16" alt="fait"> | Partie « Choix techniques et compromis » du README |
+| Limites reconnues | <img src="assets/icons/check.svg" width="16" alt="fait"> | Partie « Limites et améliorations possibles » du README |
+| Un autre développeur peut reproduire le projet | <img src="assets/icons/check.svg" width="16" alt="fait"> | `cp .env.example .env && docker compose up -d --build` |

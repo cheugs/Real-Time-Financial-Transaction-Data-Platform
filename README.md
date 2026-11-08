@@ -1,150 +1,160 @@
-# Real-Time Financial Transaction Data Platform
+# Plateforme de données de transactions financières en temps réel
 
-A student data-engineering project: a streaming pipeline that processes **synthetic** payment
-events and turns them into transaction-monitoring numbers, shown on a live dashboard.
+[![Français](https://img.shields.io/badge/langue-Fran%C3%A7ais-00846A)](README.md) [![English](https://img.shields.io/badge/lang-English-lightgrey)](README.en.md)
 
-> This is a data platform demo. All data is fake, and the "suspicious activity" indicators are
-> simple simulated rules. This is **not** a production fraud detector.
+[![CI](https://github.com/cheugs/Real-Time-Financial-Transaction-Data-Platform/actions/workflows/ci.yml/badge.svg)](https://github.com/cheugs/Real-Time-Financial-Transaction-Data-Platform/actions/workflows/ci.yml) ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white) ![Kafka](https://img.shields.io/badge/Apache%20Kafka-3.8-231F20?logo=apachekafka&logoColor=white) ![Spark](https://img.shields.io/badge/PySpark-3.5-E25A1C?logo=apachespark&logoColor=white) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white) ![dbt](https://img.shields.io/badge/dbt-1.8-FF694B?logo=dbt&logoColor=white) ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white) ![Streamlit](https://img.shields.io/badge/Streamlit-1.65-FF4B4B?logo=streamlit&logoColor=white)
 
-[![Open the live dashboard](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://cheugs-txn-monitor.streamlit.app/)
+Projet étudiant de data engineering : un pipeline de streaming qui traite des paiements **synthétiques**
+et les transforme en indicateurs de suivi des transactions, affichés sur un tableau de bord en direct.
 
-**Live demo:** https://cheugs-txn-monitor.streamlit.app/  
-*A replay of a real pipeline run (the full Kafka + Spark stack runs locally with Docker, see section 13).*
+> Ceci est une démonstration de plateforme de données. Toutes les données sont fictives, et les
+> indicateurs d'« activité suspecte » sont de simples règles simulées. Ce n'est **pas** un système
+> de détection de fraude utilisable en production.
 
-**Contents:**
-[1. Overview](#1-project-overview) ·
-[2. Business context](#2-business-context--mission) ·
-[3. Objectives](#3-project-objectives) ·
-[4. Architecture](#4-system-architecture) ·
-[5. Data model](#5-data-model--event-schema) ·
-[6. Challenges](#6-engineering-challenges--solutions) ·
-[7. Processing logic](#7-data-processing--business-logic) ·
-[8. Decisions](#8-engineering-decisions--trade-offs) ·
-[9. Results](#9-results--performance-benchmarks) ·
-[10. Dashboard](#10-dashboard--monitoring) ·
-[11. Testing](#11-testing--reliability) ·
-[12. Stack](#12-technology-stack) ·
-[13. Installation](#13-installation--execution) ·
-[14. Limitations](#14-limitations--future-improvements) ·
-[15. Skills](#15-skills-demonstrated)
+[![Ouvrir le tableau de bord en ligne](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://cheugs-txn-monitor.streamlit.app/)
+
+**Démo en ligne :** https://cheugs-txn-monitor.streamlit.app/  
+*Une rediffusion d'une vraie exécution du pipeline (la chaîne complète Kafka + Spark tourne en local avec Docker, voir la section 13).*
+
+**Sommaire :**
+[1. Présentation](#1-présentation-du-projet) ·
+[2. Contexte](#2-contexte-métier-et-mission) ·
+[3. Objectifs](#3-objectifs-du-projet) ·
+[4. Architecture](#4-architecture-du-système) ·
+[5. Modèle de données](#5-modèle-de-données-et-schéma-des-événements) ·
+[6. Défis](#6-défis-techniques-et-solutions) ·
+[7. Traitement](#7-traitement-des-données-et-logique-métier) ·
+[8. Choix](#8-choix-techniques-et-compromis) ·
+[9. Résultats](#9-résultats-et-tests-de-performance) ·
+[10. Tableau de bord](#10-tableau-de-bord-et-supervision) ·
+[11. Tests](#11-tests-et-fiabilité) ·
+[12. Technologies](#12-technologies-utilisées) ·
+[13. Installation](#13-installation-et-exécution) ·
+[14. Limites](#14-limites-et-améliorations-possibles) ·
+[15. Compétences](#15-compétences-démontrées)
 
 ---
 
-## 1. Project Overview
+## 1. Présentation du projet
 
-A Python producer sends fake card payments to **Kafka**. A **PySpark Structured Streaming** job
-reads them continuously, checks them, removes duplicates, converts amounts to EUR and counts
-them per minute. The results go to **PostgreSQL**, **dbt** builds analytics tables on top, and a
-**Streamlit** dashboard shows everything live. All of it runs with one Docker command.
+Un producteur Python envoie de faux paiements par carte à **Kafka**. Un job **PySpark Structured
+Streaming** les lit en continu, les vérifie, supprime les doublons, convertit les montants en EUR
+et les compte par minute. Les résultats vont dans **PostgreSQL**, **dbt** construit des tables
+d'analyse par-dessus, et un tableau de bord **Streamlit** affiche tout en direct. L'ensemble se
+lance avec une seule commande Docker.
 
-**At a glance:**
-- **Run it:** `docker compose up -d --build`
-- **What it proves:** event-time windows, duplicate handling, late events with a watermark,
-  replay from Kafka, schema evolution, and no lost or double-counted transactions after a crash
-- **Tested:** 41 unit and integration tests, 11 end-to-end tests, 26 dbt data tests, and a CI workflow
-- **Measured:** 1,000,000 events processed at about 3,000 events/s, with 0 lost and 0 duplicated
-- **Checklist:** every acceptance item is linked to its evidence in [docs/CHECKLIST.md](docs/CHECKLIST.md)
+**En bref :**
+- **Lancement :** `docker compose up -d --build`
+- **Ce que le projet démontre :** fenêtres en temps d'événement, gestion des doublons, événements
+  en retard avec un watermark, rejeu depuis Kafka, évolution du schéma, et aucune transaction
+  perdue ou comptée deux fois après une panne
+- **Testé :** 41 tests unitaires et d'intégration, 11 tests de bout en bout, 26 tests de données dbt,
+  et une intégration continue (CI) qui passe à chaque commit
+- **Mesuré :** 1 000 000 d'événements traités à environ 3 000 événements/s, avec 0 perte et 0 doublon
+- **Checklist :** chaque critère d'acceptation est relié à sa preuve dans [docs/CHECKLIST.md](docs/CHECKLIST.md)
 
-## 2. Business Context & Mission
+## 2. Contexte métier et mission
 
-Banks and payment companies receive a constant stream of transactions. Their teams need to know,
-within seconds, how much money is moving, whether the systems are keeping up, and whether some
-activity looks unusual. The data behind those answers is messy: messages arrive late or out of
-order, some are sent twice, some are broken, and the message format changes over time.
+Les banques et les sociétés de paiement reçoivent un flux continu de transactions. Leurs équipes
+doivent savoir, en quelques secondes, combien d'argent circule, si les systèmes suivent le rythme,
+et si certaines activités semblent inhabituelles. Les données derrière ces réponses sont
+imparfaites : des messages arrivent en retard ou dans le désordre, certains sont envoyés deux fois,
+d'autres sont cassés, et le format des messages change avec le temps.
 
-**Mission:** build a small but realistic data platform that turns this messy stream into numbers
-people can **trust**. Each payment is counted exactly once, in the minute it really happened,
-and broken data is set aside with a reason instead of being lost.
+**Mission :** construire une petite plateforme de données, mais réaliste, qui transforme ce flux
+imparfait en chiffres **fiables**. Chaque paiement est compté une seule fois, dans la minute où il
+a vraiment eu lieu, et les données invalides sont mises de côté avec leur motif au lieu d'être perdues.
 
-## 3. Project Objectives
+## 3. Objectifs du projet
 
-1. Generate realistic synthetic payments, including messy data on purpose.
-2. Ingest them through Kafka and process them continuously with Spark.
-3. Use **event time** (not arrival time) for all time-based numbers.
-4. Handle duplicates, late events, invalid records and schema changes correctly.
-5. Recover after a crash without losing or double-counting transactions, and allow a full replay.
-6. Store clean, well-structured results in PostgreSQL and model them with dbt.
-7. Show volumes, delays and simulated suspicious-activity indicators on a live dashboard.
-8. Prove all of this with automated tests and a performance benchmark.
+1. Générer des paiements synthétiques réalistes, y compris des données imparfaites volontairement.
+2. Les ingérer avec Kafka et les traiter en continu avec Spark.
+3. Utiliser le **temps de l'événement** (et non l'heure d'arrivée) pour tous les calculs temporels.
+4. Gérer correctement les doublons, les événements en retard, les données invalides et les changements de schéma.
+5. Redémarrer après une panne sans perdre ni compter deux fois de transactions, et permettre un rejeu complet.
+6. Stocker des résultats propres et bien structurés dans PostgreSQL et les modéliser avec dbt.
+7. Afficher les volumes, les délais et des indicateurs simulés d'activité suspecte sur un tableau de bord en direct.
+8. Prouver tout cela avec des tests automatisés et un test de performance.
 
-## 4. System Architecture
+## 4. Architecture du système
 
 ```
  ┌──────────┐   ┌──────────────┐   ┌────────────────────────────┐   ┌──────────────┐   ┌───────────┐
  │ producer │──▶│ Kafka        │──▶│ PySpark Structured         │──▶│ PostgreSQL   │──▶│ Streamlit │
  │ (Python) │   │ topic        │   │ Streaming                  │   │ public.*     │   │ dashboard │
- └──────────┘   │ "payments"   │   │  1. parse JSON             │   │  raw + stream│   └───────────┘
-                │ 3 partitions │   │  2. validate + FX to EUR   │   │  monitoring  │         ▲
-                │ 7-day retain │   │  3a. raw_sink   (dedup)    │   └──────┬───────┘         │
+ └──────────┘   │ "payments"   │   │  1. lecture du JSON        │   │  brut + flux │   └───────────┘
+                │ 3 partitions │   │  2. validation + EUR       │   │  supervision │         ▲
+                │ 7 jours      │   │  3a. raw_sink   (dédoubl.) │   └──────┬───────┘         │
                 └──────────────┘   │  3b. volume_per_min        │          │                 │
-                                   │      (watermark + window)  │   ┌──────▼───────┐         │
+                                   │      (watermark + fenêtre) │   ┌──────▼───────┐         │
                                    └────────────────────────────┘   │ dbt          │─────────┘
                                                                     │ analytics.*  │
                                                                     └──────────────┘
 ```
 
-| Component | Responsibility | Code |
-|-----------|----------------|------|
-| Producer | Generates fake payments, plus messy data on purpose (duplicates, late, invalid, malformed, 2 schema versions) | [producer/](producer/) |
-| Kafka | Durable event log that can be replayed. Topic `payments` is created by `kafka-init` with 3 partitions (key = `account_id`) and 7-day retention | [docker-compose.yml](docker-compose.yml) |
-| Spark | Parses and validates events, converts to EUR, removes duplicates, builds event-time windows, and writes idempotently to Postgres | [spark/](spark/) |
-| PostgreSQL | `public` holds raw data, streaming aggregates and monitoring tables. `analytics` holds the dbt models | [sql/init.sql](sql/init.sql) |
-| dbt | A staging view and mart tables (health, status, currency, suspicious activity). Data tests run every 30 s | [dbt/](dbt/) |
-| Dashboard | Live KPIs, volumes, latency, throughput, Kafka lag, data quality and indicators | [dashboard/](dashboard/) |
+| Composant | Rôle | Code |
+|-----------|------|------|
+| Producteur | Génère de faux paiements, avec des données imparfaites volontaires (doublons, retards, données invalides ou mal formées, 2 versions de schéma) | [producer/](producer/) |
+| Kafka | Journal d'événements durable et rejouable. Le topic `payments` est créé par `kafka-init` avec 3 partitions (clé = `account_id`) et une rétention de 7 jours | [docker-compose.yml](docker-compose.yml) |
+| Spark | Lit et valide les événements, convertit en EUR, supprime les doublons, construit les fenêtres en temps d'événement et écrit de façon idempotente dans Postgres | [spark/](spark/) |
+| PostgreSQL | `public` contient les données brutes, les agrégats du flux et les tables de supervision. `analytics` contient les modèles dbt | [sql/init.sql](sql/init.sql) |
+| dbt | Une vue de staging et des tables de marts (santé, statut, devises, activité suspecte). Les tests de données tournent toutes les 30 s | [dbt/](dbt/) |
+| Tableau de bord | KPI en direct, volumes, latence, débit, retard Kafka, qualité des données et indicateurs | [dashboard/](dashboard/) |
 
-### Data flow: the journey of one payment
+### Flux de données : le parcours d'un paiement
 
 ```mermaid
 flowchart LR
-    P["Producer<br/>fake payment as JSON"] -->|"key = account_id"| K[("Kafka<br/>topic: payments")]
-    K -->|"every 5 s, micro-batch"| S["Spark<br/>parse + validate + EUR"]
-    S -->|"invalid"| BAD[("bad_events<br/>with error_reason")]
-    S -->|"valid, duplicates skipped"| RAW[("raw_transactions")]
-    S -->|"valid, deduplicated,<br/>1-min event-time windows"| WIN[("txn_volume_per_minute")]
-    S -->|"progress, lag, restarts"| MON[("batch_log<br/>stream_progress<br/>pipeline_events")]
-    RAW -->|"every 30 s"| DBT["dbt<br/>models + tests"]
-    DBT --> AN[("analytics.*<br/>health, status, currency,<br/>suspicious activity")]
-    RAW --> D["Streamlit dashboard"]
+    P["Producteur<br/>faux paiement en JSON"] -->|"clé = account_id"| K[("Kafka<br/>topic : payments")]
+    K -->|"toutes les 5 s, micro-batch"| S["Spark<br/>lecture + validation + EUR"]
+    S -->|"invalide"| BAD[("bad_events<br/>avec error_reason")]
+    S -->|"valide, doublons ignorés"| RAW[("raw_transactions")]
+    S -->|"valide, dédoublonné,<br/>fenêtres d'1 min"| WIN[("txn_volume_per_minute")]
+    S -->|"progression, retard, redémarrages"| MON[("batch_log<br/>stream_progress<br/>pipeline_events")]
+    RAW -->|"toutes les 30 s"| DBT["dbt<br/>modèles + tests"]
+    DBT --> AN[("analytics.*<br/>santé, statut, devises,<br/>activité suspecte")]
+    RAW --> D["Tableau de bord Streamlit"]
     WIN --> D
     MON --> D
     AN --> D
 ```
 
-**Step by step:**
+**Étape par étape :**
 
-1. **Created.** The producer makes a payment (for example 34.50 GBP from account `ACC0042`) and gives it a unique `event_id` and an `event_time`, which is when the payment happened.
-2. **Stored in Kafka.** The message goes to the `payments` topic. The key is `account_id`, so all payments of one account land in the same partition, in order. Kafka saves the arrival time (`kafka_time`) and keeps the message for 7 days, so it can be replayed.
-3. **Read by Spark.** Every 5 seconds Spark reads the new messages as one micro-batch. It saves its position (the Kafka offsets) in a checkpoint, so after a crash it continues from the same place.
-4. **Checked and converted.** Spark turns the JSON into columns, checks the data-quality rules (section 7), and converts the amount to EUR with the `fx_rates` table.
-5. **Split into two streams:**
-   - **Raw path:** every valid payment is written to `raw_transactions` once. A copy with the same `event_id` is skipped and counted in `batch_log`. An invalid record goes to `bad_events` with the reason.
-   - **Window path:** valid payments are deduplicated and counted per 1-minute window of **event time**. A late payment (up to 10 minutes) updates the minute it belongs to, and the result is upserted into `txn_volume_per_minute`.
-6. **Monitored.** Each batch writes its numbers to `batch_log`, Spark's progress (throughput, Kafka lag) goes to `stream_progress`, and starts, restarts and replays go to `pipeline_events`.
-7. **Modelled by dbt.** Every 30 seconds dbt rebuilds the `analytics` tables from the raw data (pipeline health, status mix, currency mix, simulated suspicious-activity indicators) and runs its 26 data tests.
-8. **Shown.** The dashboard reads Postgres every 5 seconds. A payment is usually on the dashboard about **2–5 seconds** after it reaches Kafka.
+1. **Création.** Le producteur crée un paiement (par exemple 34,50 GBP du compte `ACC0042`) avec un identifiant unique `event_id` et un `event_time`, c'est-à-dire le moment où le paiement a eu lieu.
+2. **Stockage dans Kafka.** Le message va dans le topic `payments`. La clé est `account_id` : tous les paiements d'un même compte arrivent dans la même partition, dans l'ordre. Kafka enregistre l'heure d'arrivée (`kafka_time`) et garde le message 7 jours, ce qui permet de le rejouer.
+3. **Lecture par Spark.** Toutes les 5 secondes, Spark lit les nouveaux messages en un micro-batch. Il enregistre sa position (les offsets Kafka) dans un checkpoint : après une panne, il reprend au même endroit.
+4. **Vérification et conversion.** Spark transforme le JSON en colonnes, vérifie les règles de qualité (section 7) et convertit le montant en EUR avec la table `fx_rates`.
+5. **Séparation en deux flux :**
+   - **Flux brut :** chaque paiement valide est écrit une seule fois dans `raw_transactions`. Une copie avec le même `event_id` est ignorée et comptée dans `batch_log`. Un enregistrement invalide va dans `bad_events` avec son motif.
+   - **Flux des fenêtres :** les paiements valides sont dédoublonnés et comptés par fenêtre d'une minute en **temps d'événement**. Un paiement en retard (jusqu'à 10 minutes) met à jour la minute à laquelle il appartient, et le résultat est écrit par upsert dans `txn_volume_per_minute`.
+6. **Supervision.** Chaque batch écrit ses chiffres dans `batch_log`, la progression de Spark (débit, retard Kafka) va dans `stream_progress`, et les démarrages, redémarrages et rejeux vont dans `pipeline_events`.
+7. **Modélisation par dbt.** Toutes les 30 secondes, dbt reconstruit les tables `analytics` à partir des données brutes (santé du pipeline, répartition par statut et par devise, indicateurs simulés d'activité suspecte) et lance ses 26 tests de données.
+8. **Affichage.** Le tableau de bord lit Postgres toutes les 5 secondes. Un paiement apparaît en général **2 à 5 secondes** après son arrivée dans Kafka.
 
-**Where a record can end up:**
+**Où peut finir un enregistrement :**
 
-| The record is… | Where it goes | Counted in windows? |
-|----------------|---------------|---------------------|
-| Valid and new | `raw_transactions` + its 1-minute window | Yes |
-| A duplicate (same `event_id`) | Skipped, counted in `batch_log.duplicates_skipped` | No (already counted) |
-| Invalid or malformed | `bad_events`, with `error_reason` | No |
-| Late, but within 10 minutes | `raw_transactions` + the window of the minute it happened | Yes |
-| Later than 10 minutes | `raw_transactions` only (kept, never lost) | No (window already closed) |
+| L'enregistrement est… | Où il va | Compté dans les fenêtres ? |
+|-----------------------|----------|----------------------------|
+| Valide et nouveau | `raw_transactions` + sa fenêtre d'une minute | Oui |
+| Un doublon (même `event_id`) | Ignoré, compté dans `batch_log.duplicates_skipped` | Non (déjà compté) |
+| Invalide ou mal formé | `bad_events`, avec `error_reason` | Non |
+| En retard, mais de moins de 10 minutes | `raw_transactions` + la fenêtre de la minute où il a eu lieu | Oui |
+| En retard de plus de 10 minutes | `raw_transactions` seulement (gardé, jamais perdu) | Non (fenêtre déjà fermée) |
 
-**Online demo flow:** the [live dashboard](https://cheugs-txn-monitor.streamlit.app/) cannot run Kafka and Spark for free,
-so `scripts/export_snapshot.py` copies a few hours of a real run from the local Postgres to a cloud
-Postgres (Neon), and the online dashboard reads that copy in demo mode (section 10).
+**Flux de la démo en ligne :** le [tableau de bord en ligne](https://cheugs-txn-monitor.streamlit.app/) ne peut pas faire
+tourner Kafka et Spark gratuitement. Le script `scripts/export_snapshot.py` copie donc quelques heures
+d'une vraie exécution depuis le Postgres local vers un Postgres dans le cloud (Neon), et le tableau de
+bord en ligne lit cette copie en mode démo (section 10).
 
-**Traceability:**
-- Every row in `raw_transactions` keeps its `kafka_partition` and `kafka_offset`, so you can trace it back to the exact Kafka message. Invalid messages in `bad_events` are keyed by the same Kafka position.
-- `batch_log` records every Spark micro-batch, and `stream_progress` records every progress report (with its `run_id`).
-- `pipeline_events` records every start, restart, failure and replay.
+**Traçabilité :**
+- Chaque ligne de `raw_transactions` garde sa `kafka_partition` et son `kafka_offset` : on peut remonter au message Kafka exact. Les messages invalides de `bad_events` ont pour clé la même position Kafka.
+- `batch_log` enregistre chaque micro-batch Spark, et `stream_progress` chaque rapport de progression (avec son `run_id`).
+- `pipeline_events` enregistre chaque démarrage, redémarrage, panne et rejeu.
 
-## 5. Data Model & Event Schema
+## 5. Modèle de données et schéma des événements
 
-**Event, schema v1**
+**Événement, schéma v1**
 
 ```json
 {"event_id": "uuid", "schema_version": 1, "account_id": "ACC0042", "merchant_id": "MER007",
@@ -152,207 +162,210 @@ Postgres (Neon), and the online dashboard reads that copy in demo mode (section 
  "event_time": "2026-11-01T12:00:00.123Z"}
 ```
 
-**Schema v2** adds two optional fields: `payment_method` and `device_id`.
+Le **schéma v2** ajoute deux champs facultatifs : `payment_method` et `device_id`.
 
-| Table | Written by | Contents |
-|-------|-----------|----------|
-| `fx_rates` | init.sql | Fixed **demo** exchange rates to EUR (not live rates) |
-| `raw_transactions` | Spark | Every valid event, stored once (`event_id` primary key), with `amount_eur` |
-| `bad_events` | Spark | Rejected records + `error_reason` (dead-letter table) |
-| `txn_volume_per_minute` | Spark | Count, EUR amount, status counts and delays per 1-minute event-time window |
-| `batch_log` | Spark | Per micro-batch: received, inserted, duplicates skipped, invalid |
-| `stream_progress` | Spark | Throughput, batch duration and **Kafka consumer lag** per batch |
-| `pipeline_events` | Spark / replay script | Fresh start, restart from checkpoint, query failure, replay |
-| `analytics.stg_transactions` | dbt | Cleaned view with delay columns |
-| `analytics.pipeline_health_per_minute` | dbt | Latency, late events and schema versions per minute |
-| `analytics.status_per_minute` | dbt | Distribution by status |
-| `analytics.volume_by_currency` | dbt | Amount per currency (local and EUR) |
-| `analytics.suspicious_activity` | dbt | Simulated rule-based indicators |
+| Table | Écrite par | Contenu |
+|-------|-----------|---------|
+| `fx_rates` | init.sql | Taux de change **de démonstration** fixes vers l'EUR (pas des taux réels) |
+| `raw_transactions` | Spark | Chaque événement valide, stocké une seule fois (clé primaire `event_id`), avec `amount_eur` |
+| `bad_events` | Spark | Enregistrements rejetés + `error_reason` (table « dead-letter ») |
+| `txn_volume_per_minute` | Spark | Nombre, montant en EUR, comptes par statut et délais par fenêtre d'une minute |
+| `batch_log` | Spark | Par micro-batch : reçus, insérés, doublons ignorés, invalides |
+| `stream_progress` | Spark | Débit, durée du batch et **retard du consommateur Kafka** par batch |
+| `pipeline_events` | Spark / script de rejeu | Premier démarrage, reprise depuis le checkpoint, panne, rejeu |
+| `analytics.stg_transactions` | dbt | Vue nettoyée avec les colonnes de délai |
+| `analytics.pipeline_health_per_minute` | dbt | Latence, événements en retard et versions de schéma par minute |
+| `analytics.status_per_minute` | dbt | Répartition par statut |
+| `analytics.volume_by_currency` | dbt | Montant par devise (local et en EUR) |
+| `analytics.suspicious_activity` | dbt | Indicateurs simulés basés sur des règles |
 
-**Indexes** (explained in `init.sql`):
-- `raw_transactions(event_time)`: the dashboard and dbt filter by event-time ranges.
-- `raw_transactions(account_id, event_time)`: the suspicious-activity rules group by account over time.
-- `raw_transactions(processed_at)`: the "latency in the last 5 minutes" KPI reads only recent rows.
-- `stream_progress(batch_timestamp)`: the dashboard charts read the last hour of progress.
+**Index** (expliqués dans `init.sql`) :
+- `raw_transactions(event_time)` : le tableau de bord et dbt filtrent par période de temps d'événement.
+- `raw_transactions(account_id, event_time)` : les règles d'activité suspecte regroupent par compte dans le temps.
+- `raw_transactions(processed_at)` : le KPI « latence sur les 5 dernières minutes » ne lit que les lignes récentes.
+- `stream_progress(batch_timestamp)` : les graphiques lisent la dernière heure de progression.
 
-## 6. Engineering Challenges & Solutions
+## 6. Défis techniques et solutions
 
-| Challenge | Solution |
-|-----------|----------|
-| **Event time vs processing time:** a payment can reach us minutes after it happened | Windows are grouped by `event_time`. Three timestamps are stored (`event_time`, `kafka_time`, `processed_at`), so delays can be measured |
-| **Duplicates:** the source re-sends about 3% of events | Spark `dropDuplicates(["event_id", "event_time"])` keeps window totals correct. Postgres `ON CONFLICT (event_id) DO NOTHING` keeps the raw table clean. Skipped copies are counted in `batch_log` |
-| **Late and out-of-order events** | A 10-minute watermark: a late event inside the watermark updates its old window. Events later than that are left out of the windows but are still stored in `raw_transactions` |
-| **Replayability** | Kafka keeps 7 days of events. `scripts/replay.ps1` (or `replay.sh`) clears the outputs and checkpoints, and Spark re-reads the topic from the start. Tested: the same event IDs come back |
-| **Schema evolution** | The Spark schema has the fields of every version. v1 events get `NULL` for new fields, unknown future fields are ignored, and a missing `schema_version` means v1 |
-| **Delivery guarantees** | See the table below. Database errors are retried 3 times, the container restarts after a crash, and `failOnDataLoss=true` stops the job rather than silently skipping data |
+| Défi | Solution |
+|------|----------|
+| **Temps d'événement ou temps de traitement :** un paiement peut nous arriver plusieurs minutes après avoir eu lieu | Les fenêtres sont groupées par `event_time`. Trois horodatages sont stockés (`event_time`, `kafka_time`, `processed_at`), ce qui permet de mesurer les délais |
+| **Doublons :** la source renvoie environ 3 % des événements | `dropDuplicates(["event_id", "event_time"])` dans Spark garde des totaux justes. `ON CONFLICT (event_id) DO NOTHING` dans Postgres garde la table brute propre. Les copies ignorées sont comptées dans `batch_log` |
+| **Événements en retard ou dans le désordre** | Un watermark de 10 minutes : un événement en retard dans cette limite met à jour son ancienne fenêtre. Au-delà, il n'est plus compté dans les fenêtres, mais il est quand même stocké dans `raw_transactions` |
+| **Rejeu** | Kafka garde 7 jours d'événements. `scripts/replay.ps1` (ou `replay.sh`) vide les sorties et les checkpoints, et Spark relit le topic depuis le début. Testé : les mêmes identifiants reviennent |
+| **Évolution du schéma** | Le schéma Spark contient les champs de toutes les versions. Les événements v1 reçoivent `NULL` pour les nouveaux champs, les champs futurs inconnus sont ignorés, et un `schema_version` absent signifie v1 |
+| **Garanties de livraison** | Voir le tableau ci-dessous. Les erreurs de base de données sont réessayées 3 fois, le conteneur redémarre après une panne, et `failOnDataLoss=true` arrête le job plutôt que d'ignorer des données en silence |
 
-**Delivery guarantees, step by step:**
+**Garanties de livraison, étape par étape :**
 
-| Step | Guarantee | How |
-|------|-----------|-----|
-| Producer → Kafka | No duplicates from retries | `acks=all`, `enable.idempotence=true` |
-| Source system | At-least-once (it may re-send) | Simulated 3% duplicates |
-| Kafka → Spark | At-least-once | Offsets are saved in the checkpoint. After a crash, the unfinished batch runs again |
-| Spark → Postgres | Idempotent writes | Upserts keyed on `event_id` / `window_start` / Kafka position. `batch_log` is written in the same transaction |
-| **End result** | **Effectively exactly-once in Postgres** | At-least-once processing + idempotent writes |
+| Étape | Garantie | Comment |
+|-------|----------|---------|
+| Producteur → Kafka | Pas de doublons dus aux nouvelles tentatives | `acks=all`, `enable.idempotence=true` |
+| Système source | Au moins une fois (il peut renvoyer) | 3 % de doublons simulés |
+| Kafka → Spark | Au moins une fois | Les offsets sont sauvegardés dans le checkpoint. Après une panne, le batch non terminé est relancé |
+| Spark → Postgres | Écritures idempotentes | Upserts sur `event_id` / `window_start` / position Kafka. `batch_log` est écrit dans la même transaction |
+| **Résultat final** | **Équivalent à « exactement une fois » dans Postgres** | Traitement « au moins une fois » + écritures idempotentes |
 
-**Key terms:**
+**Termes clés :**
 
-| Term | Meaning in this project |
-|------|-------------------------|
-| Event time | When the payment happened (`event_time`), not when we received it |
-| Watermark | How long Spark waits for late events (10 minutes) before it closes a time window |
-| Micro-batch | Spark reads new Kafka messages every 5 seconds and processes them as one small batch |
-| Checkpoint | A folder where Spark saves its progress, so it can continue after a restart |
-| Idempotent write | Writing the same data twice gives the same result as writing it once |
-| Upsert | `INSERT ... ON CONFLICT`: insert a new row, or update the row if it already exists |
-| Exactly-once result | Each transaction is counted once in the database, even if it was processed twice |
-| Dead-letter table | `bad_events`: where invalid records go, with the reason, instead of being lost |
-| Kafka consumer lag | How many messages are in Kafka but not processed yet |
+| Terme | Signification dans ce projet |
+|-------|------------------------------|
+| Temps d'événement | Le moment où le paiement a eu lieu (`event_time`), et non celui où nous l'avons reçu |
+| Watermark | Combien de temps Spark attend les événements en retard (10 minutes) avant de fermer une fenêtre |
+| Micro-batch | Spark lit les nouveaux messages Kafka toutes les 5 secondes et les traite en un petit lot |
+| Checkpoint | Un dossier où Spark sauvegarde sa progression pour pouvoir reprendre après un redémarrage |
+| Écriture idempotente | Écrire deux fois les mêmes données donne le même résultat qu'une seule fois |
+| Upsert | `INSERT ... ON CONFLICT` : insère une nouvelle ligne, ou met à jour la ligne si elle existe déjà |
+| Résultat « exactement une fois » | Chaque transaction est comptée une seule fois dans la base, même si elle a été traitée deux fois |
+| Table dead-letter | `bad_events` : là où vont les enregistrements invalides, avec leur motif, au lieu d'être perdus |
+| Retard du consommateur Kafka | Le nombre de messages présents dans Kafka mais pas encore traités |
 
-## 7. Data Processing & Business Logic
+## 7. Traitement des données et logique métier
 
-**Step by step, for every micro-batch** ([spark/transformations.py](spark/transformations.py)):
-1. **Parse** the JSON message into typed columns.
-2. **Validate** it. The first rule that fails is stored as `error_reason`, and the record goes to `bad_events`.
-3. **Convert** the amount to EUR with the `fx_rates` table, so totals never mix currencies.
-4. **Store** valid events in `raw_transactions` (duplicates skipped).
-5. **Aggregate** by 1-minute event-time window: count, EUR total, approved/declined, delays and late events.
+**Étape par étape, pour chaque micro-batch** ([spark/transformations.py](spark/transformations.py)) :
+1. **Lire** le message JSON et le transformer en colonnes typées.
+2. **Valider.** La première règle non respectée est enregistrée dans `error_reason`, et l'enregistrement va dans `bad_events`.
+3. **Convertir** le montant en EUR avec la table `fx_rates`, pour ne jamais additionner des devises différentes.
+4. **Stocker** les événements valides dans `raw_transactions` (doublons ignorés).
+5. **Agréger** par fenêtre d'une minute en temps d'événement : nombre, total en EUR, acceptés/refusés, délais et retards.
 
-**Data quality rules:**
+**Règles de qualité des données :**
 
-| Rule | `error_reason` |
-|------|----------------|
-| Not valid JSON | `malformed_json` |
-| `event_id` / `account_id` / `amount` / `event_time` missing | `missing_*` |
-| Timestamp can't be parsed | `invalid_event_time` |
-| Timestamp more than 5 minutes in the future | `event_time_in_future` |
-| Amount below 0.01 | `non_positive_amount` |
-| Currency missing or not in `fx_rates` | `unknown_currency` |
-| More than 1,000,000 EUR | `amount_too_large` |
-| Status not APPROVED / DECLINED / PENDING | `invalid_status` |
+| Règle | `error_reason` |
+|-------|----------------|
+| JSON invalide | `malformed_json` |
+| `event_id` / `account_id` / `amount` / `event_time` absent | `missing_*` |
+| Horodatage illisible | `invalid_event_time` |
+| Horodatage plus de 5 minutes dans le futur | `event_time_in_future` |
+| Montant inférieur à 0,01 | `non_positive_amount` |
+| Devise absente ou inconnue de `fx_rates` | `unknown_currency` |
+| Plus de 1 000 000 EUR | `amount_too_large` |
+| Statut différent de APPROVED / DECLINED / PENDING | `invalid_status` |
 
-Postgres repeats the most important rules as constraints (`CHECK amount > 0`, a foreign key on
-currency, `CHECK status IN ...`), and dbt tests check them again on the stored data.
+Postgres répète les règles les plus importantes sous forme de contraintes (`CHECK amount > 0`, une
+clé étrangère sur la devise, `CHECK status IN ...`), et les tests dbt les vérifient à nouveau sur les données stockées.
 
-**Simulated suspicious-activity indicators** ([dbt/models/marts/suspicious_activity.sql](dbt/models/marts/suspicious_activity.sql)).
-Each flagged row has a sentence that explains why. The thresholds are dbt vars in [dbt/dbt_project.yml](dbt/dbt_project.yml).
+**Indicateurs simulés d'activité suspecte** ([dbt/models/marts/suspicious_activity.sql](dbt/models/marts/suspicious_activity.sql)).
+Chaque ligne signalée contient une phrase qui explique pourquoi. Les seuils sont des variables dbt dans [dbt/dbt_project.yml](dbt/dbt_project.yml).
 
-| Rule | Flagged when |
-|------|--------------|
-| High velocity | 6 or more payments from one account in 5 minutes |
-| Large amount | One payment of 3,000 EUR or more (compared in EUR, so 3,000 XAF is not flagged) |
-| Country hopping | Payments from 3 or more countries by one account within one hour |
+| Règle | Signalé quand |
+|-------|---------------|
+| Fréquence élevée | 6 paiements ou plus d'un même compte en 5 minutes |
+| Montant élevé | Un paiement de 3 000 EUR ou plus (comparé en EUR : 3 000 XAF ne sont donc pas signalés) |
+| Changement de pays | Des paiements dans 3 pays ou plus pour un même compte en une heure |
 
-## 8. Engineering Decisions & Trade-offs
+## 8. Choix techniques et compromis
 
-| Decision | Why | Trade-off |
-|----------|-----|-----------|
-| `foreachBatch` + psycopg2 upserts instead of the JDBC sink | JDBC can't do `ON CONFLICT`, and idempotent writes are what give exactly-once results | Each batch is collected to the driver. Fine for thousands of events/s, not millions |
-| Two streaming queries (raw + windows) | The raw table must keep **every** event, even ones beyond the watermark | The two queries commit at slightly different times |
-| Validation in Spark and constraints in Postgres | Bad records are isolated early with a reason, and the database is a second safety net | The rules live in two places, and unit tests keep them in line |
-| FX rates loaded once at start-up | Simple, and amounts are never mixed between currencies | Rates are fixed demo values. Changing them needs a Spark restart |
-| RocksDB state store | Dedup and window state stays on disk, not in JVM memory | Slightly slower than in-memory for tiny workloads |
-| Watermark of 10 minutes | Accepts typical late events (seconds to minutes) | Window results are final only after 10 minutes, and later events don't count in windows |
-| dbt full rebuild every 30 s | Easy to understand | Doesn't scale to very large tables (incremental models would) |
-| JSON instead of Avro + Schema Registry | Easy to read and debug | Schema rules live in code, with no registry enforcing compatibility |
+| Choix | Pourquoi | Compromis |
+|-------|----------|-----------|
+| `foreachBatch` + upserts psycopg2 au lieu du connecteur JDBC | JDBC ne sait pas faire `ON CONFLICT`, et ce sont les écritures idempotentes qui donnent des résultats « exactement une fois » | Chaque batch est rapatrié sur le driver. Suffisant pour des milliers d'événements/s, pas pour des millions |
+| Deux requêtes de streaming (brut + fenêtres) | La table brute doit garder **tous** les événements, même ceux au-delà du watermark | Les deux requêtes valident leurs écritures à des moments légèrement différents |
+| Validation dans Spark et contraintes dans Postgres | Les mauvais enregistrements sont isolés tôt avec leur motif, et la base sert de deuxième filet de sécurité | Les règles existent à deux endroits ; les tests unitaires les gardent cohérentes |
+| Taux de change chargés une fois au démarrage | Simple, et les montants ne mélangent jamais les devises | Taux de démonstration fixes. Les changer demande de redémarrer Spark |
+| State store RocksDB | L'état des doublons et des fenêtres reste sur disque, pas dans la mémoire de la JVM | Un peu plus lent qu'en mémoire pour de très petits volumes |
+| Watermark de 10 minutes | Accepte les retards habituels (de quelques secondes à quelques minutes) | Les résultats d'une fenêtre ne sont définitifs qu'après 10 minutes, et les événements plus tardifs ne comptent pas dans les fenêtres |
+| Reconstruction complète par dbt toutes les 30 s | Facile à comprendre | Ne passe pas à l'échelle sur de très grosses tables (des modèles incrémentaux le feraient) |
+| JSON plutôt qu'Avro + Schema Registry | Facile à lire et à déboguer | Les règles de schéma sont dans le code, sans registre pour imposer la compatibilité |
 
-## 9. Results & Performance Benchmarks
+## 9. Résultats et tests de performance
 
-Measured on a laptop: Docker Desktop with 12 CPUs and 8 GB, Spark in `local[4]`. Full details and
-the bottleneck analysis are in [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+Mesuré sur un ordinateur portable : Docker Desktop avec 12 CPU et 8 Go, Spark en `local[4]`. Le détail
+complet et l'analyse des goulots d'étranglement sont dans [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
-| | 100,000 events | 1,000,000 events |
+| | 100 000 événements | 1 000 000 d'événements |
 |---|---|---|
-| Stored / lost / duplicated | 100,000 / **0** / **0** | 1,000,000 / **0** / **0** |
-| End-to-end throughput | **3,725 events/s** | **2,986 events/s** |
-| Spark throughput (avg per batch) | 4,445 events/s | 4,366 events/s |
-| Producer → Kafka | about 42,000 events/s | about 44,000 events/s |
+| Stockés / perdus / en double | 100 000 / **0** / **0** | 1 000 000 / **0** / **0** |
+| Débit de bout en bout | **3 725 événements/s** | **2 986 événements/s** |
+| Débit de Spark (moyenne par batch) | 4 445 événements/s | 4 366 événements/s |
+| Producteur → Kafka | environ 42 000 événements/s | environ 44 000 événements/s |
 
-- **Normal load** (5 events/s): latency from Kafka to Postgres is about **2.5 s** (p50) and 4.8 s (p95).
-- **Under a burst** of 1M events, most of the waiting time is the queue in Kafka. Kafka lag went up to 940,000 messages and then back to 0.
-- **Main bottlenecks:** the dedup/window state in Spark, and collecting each batch to the driver before writing.
+- **Charge normale** (5 événements/s) : la latence de Kafka à Postgres est d'environ **2,5 s** (médiane) et 4,8 s (p95).
+- **Pendant un pic** d'un million d'événements, l'essentiel de l'attente est la file d'attente dans Kafka. Le retard Kafka est monté à 940 000 messages, puis il est redescendu à 0.
+- **Principaux goulots d'étranglement :** l'état de dédoublonnage et des fenêtres dans Spark, et le rapatriement de chaque batch sur le driver avant l'écriture.
 
-Run a benchmark yourself:
+Lancer un test de performance :
 
 ```bash
 python scripts/run_benchmark.py 100000
 ```
 
-## 10. Dashboard & Monitoring
+## 10. Tableau de bord et supervision
 
-Open **http://localhost:8501**. The sidebar has five pages, and each page answers one question:
+Ouvrez **http://localhost:8501**. La barre latérale propose cinq pages, et chaque page répond à une question :
 
-| Page | Question it answers |
-|------|---------------------|
-| Overview | Is the pipeline healthy, and how much money is moving? |
-| Transactions | Volumes per minute, EUR amounts, status mix, currency mix |
-| Pipeline | Throughput, Kafka lag, latency, schema versions, and a log of starts, restarts and replays |
-| Data quality | Invalid records by reason, duplicates skipped, late events |
-| Risk indicators | The three simulated rules and the flagged activity |
+| Page | Question à laquelle elle répond |
+|------|---------------------------------|
+| Overview | Le pipeline est-il en bonne santé, et combien d'argent circule ? |
+| Transactions | Volumes par minute, montants en EUR, répartition par statut et par devise |
+| Pipeline | Débit, retard Kafka, latence, versions de schéma et journal des démarrages, redémarrages et rejeux |
+| Data quality | Enregistrements invalides par motif, doublons ignorés, événements en retard |
+| Risk indicators | Les trois règles simulées et l'activité signalée |
 
-- The data refreshes every 5 seconds, and a time-range filter (15 min – 24 h) sits in the sidebar.
-- A health badge says *Healthy*, *Catching up* or *Stalled*, based on Kafka lag and the time since the last batch.
-- The chart colours were checked for colour-blind readers.
-- Motion is switched off when the operating system asks for reduced motion.
+- Les données se rafraîchissent toutes les 5 secondes, et un filtre de période (15 min à 24 h) se trouve dans la barre latérale.
+- Un badge de santé indique *Healthy*, *Catching up* ou *Stalled*, selon le retard Kafka et le temps écoulé depuis le dernier batch.
+- Les couleurs des graphiques ont été vérifiées pour les personnes daltoniennes.
+- Il fonctionne sur téléphone et tablette : la barre latérale devient un bouton « Menu » qui se ferme après le choix d'une page.
+- Les animations sont désactivées quand le système d'exploitation demande de réduire les animations.
 
-**Online version ([https://cheugs-txn-monitor.streamlit.app/](https://cheugs-txn-monitor.streamlit.app/)):** the full pipeline is too heavy for free hosting, so the online dashboard
-(Streamlit Community Cloud + Neon Postgres) shows a **snapshot of a real run** in *demo mode*.
-`scripts/export_snapshot.py` copies the data, and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) has every step.
+**Version en ligne ([https://cheugs-txn-monitor.streamlit.app/](https://cheugs-txn-monitor.streamlit.app/)) :** le pipeline complet est trop lourd
+pour un hébergement gratuit. Le tableau de bord en ligne (Streamlit Community Cloud + Postgres Neon) affiche donc
+une **copie d'une vraie exécution** en *mode démo*. `scripts/export_snapshot.py` copie les données, et
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) décrit chaque étape.
 
-**Monitoring tables** behind the dashboard: `stream_progress` (throughput, lag), `batch_log`
-(duplicates, invalid rows), `pipeline_events` (recoveries), plus Python logs in every container.
+**Tables de supervision** derrière le tableau de bord : `stream_progress` (débit, retard), `batch_log`
+(doublons, lignes invalides), `pipeline_events` (reprises), ainsi que les logs Python de chaque conteneur.
 
-## 11. Testing & Reliability
+## 11. Tests et fiabilité
 
-| Level | What is tested | How to run |
-|-------|----------------|-----------|
-| Unit (34) | Generator, every validation rule, window maths, FX conversion | `docker compose run --rm tests` |
-| Integration (7) | Real streaming queries, one micro-batch at a time: out-of-order, late, beyond watermark, duplicates, schema evolution, malformed data, restart from checkpoint | (same command) |
-| Data tests (26) | dbt: unique, not-null, relationships, accepted values, valid amounts, windows not inflated, no future events, schema versions | Run every 30 s by the `dbt` container |
-| End-to-end (9) | On the running stack: ingestion, duplicates, invalid records, schema v1/v2/v3, late events, monitoring, dashboard vs database, dbt, Spark restart | `pytest tests/e2e -m "not slow"` |
-| Slow end-to-end (2) | Postgres outage, full replay (**replay clears the tables!**) | `pytest tests/e2e -m slow` |
+| Niveau | Ce qui est testé | Comment le lancer |
+|--------|------------------|-------------------|
+| Unitaires (34) | Générateur, chaque règle de validation, calculs des fenêtres, conversion des devises | `docker compose run --rm tests` |
+| Intégration (7) | Vraies requêtes de streaming, un micro-batch à la fois : désordre, retards, au-delà du watermark, doublons, évolution du schéma, données mal formées, reprise depuis le checkpoint | (même commande) |
+| Tests de données (26) | dbt : unicité, non-nullité, relations, valeurs acceptées, montants valides, fenêtres non gonflées, pas d'événements futurs, versions de schéma | Lancés toutes les 30 s par le conteneur `dbt` |
+| Bout en bout (9) | Sur la chaîne en marche : ingestion, doublons, données invalides, schémas v1/v2/v3, retards, supervision, tableau de bord comparé à la base, dbt, redémarrage de Spark | `pytest tests/e2e -m "not slow"` |
+| Bout en bout lents (2) | Panne de Postgres, rejeu complet (**le rejeu vide les tables !**) | `pytest tests/e2e -m slow` |
 
-**Reliability scenarios that are tested:**
-- Spark is restarted while events are flowing. Result: nothing is lost or doubled, and the recovery is logged.
-- Postgres is stopped for 20 seconds. Result: the writes are retried, Spark restarts, and every event arrives.
-- A full replay from Kafka gives back exactly the same event IDs.
+**Scénarios de fiabilité testés :**
+- Spark est redémarré pendant que des événements arrivent. Résultat : rien n'est perdu ni doublé, et la reprise est enregistrée.
+- Postgres est arrêté pendant 20 secondes. Résultat : les écritures sont réessayées, Spark redémarre, et tous les événements arrivent.
+- Un rejeu complet depuis Kafka redonne exactement les mêmes identifiants d'événements.
 
-**CI:** [.github/workflows/ci.yml](.github/workflows/ci.yml) runs the unit and integration tests,
-then starts the whole stack in Docker and runs the end-to-end tests on every push.
+**Intégration continue (CI) :** [.github/workflows/ci.yml](.github/workflows/ci.yml) lance les tests unitaires
+et d'intégration, puis démarre toute la chaîne dans Docker et lance les tests de bout en bout à chaque push.
+Elle passe à chaque commit (voir le badge en haut de la page).
 
-## 12. Technology Stack
+## 12. Technologies utilisées
 
-| Area | Tool | Version |
-|------|------|---------|
-| Language | Python | 3.12 (producer, dashboard), 3.8 (Spark image) |
-| Messaging | Apache Kafka (KRaft, no Zookeeper) | 3.8.0 |
-| Stream processing | PySpark Structured Streaming + RocksDB state store | 3.5.3 |
-| Database | PostgreSQL | 16 |
+| Domaine | Outil | Version |
+|---------|-------|---------|
+| Langage | Python | 3.12 (producteur, tableau de bord), 3.8 (image Spark) |
+| Messagerie | Apache Kafka (KRaft, sans Zookeeper) | 3.8.0 |
+| Traitement de flux | PySpark Structured Streaming + state store RocksDB | 3.5.3 |
+| Base de données | PostgreSQL | 16 |
 | Transformation | dbt-postgres | 1.8 |
-| Dashboard | Streamlit + Plotly | 1.39 / 5.24 |
-| Containers | Docker Compose | v2 |
-| Testing | pytest, dbt tests, GitHub Actions | |
+| Tableau de bord | Streamlit + Plotly | 1.65 / 5.24 |
+| Conteneurs | Docker Compose | v2 |
+| Tests | pytest, tests dbt, GitHub Actions | |
 
-## 13. Installation & Execution
+## 13. Installation et exécution
 
-You need **Docker Desktop** with at least 4 GB of memory.
+Il faut **Docker Desktop** avec au moins 4 Go de mémoire.
 
-**1. Create your settings file** and set your own `POSTGRES_PASSWORD` in it:
+**1. Créer le fichier de configuration** et y définir votre propre `POSTGRES_PASSWORD` :
 
 ```bash
 cp .env.example .env
 ```
 
-**2. Start everything** (the first start takes a few minutes, while Spark downloads the Kafka connector):
+**2. Tout démarrer** (le premier démarrage prend quelques minutes, le temps que Spark télécharge le connecteur Kafka) :
 
 ```bash
 docker compose up -d --build
 ```
 
-**3. Open the dashboard** at http://localhost:8501 (Spark UI: http://localhost:4040).
+**3. Ouvrir le tableau de bord** sur http://localhost:8501 (interface Spark : http://localhost:4040).
 
-**Run the tests:**
+**Lancer les tests :**
 
 ```bash
 docker compose run --rm tests
@@ -366,66 +379,66 @@ pip install -r requirements-dev.txt
 pytest tests/e2e -m "not slow"
 ```
 
-**Replay everything from Kafka** (Windows; use `sh scripts/replay.sh` on Mac or Linux):
+**Tout rejouer depuis Kafka** (Windows ; sur Mac ou Linux, utilisez `sh scripts/replay.sh`) :
 
 ```powershell
 .\scripts\replay.ps1
 ```
 
-**Stop:**
+**Arrêter :**
 
 ```bash
 docker compose down
 ```
 
-(`docker compose down -v` also deletes all data, Kafka topics and checkpoints.)
+(`docker compose down -v` supprime aussi toutes les données, les topics Kafka et les checkpoints.)
 
-**Configuration:** every setting is an environment variable in `.env`:
-- Postgres credentials
-- producer rate
-- Spark watermark, window size, trigger interval, batch size and cores
+**Configuration :** chaque paramètre est une variable d'environnement dans `.env` :
+- identifiants Postgres
+- cadence du producteur
+- watermark, taille des fenêtres, intervalle de déclenchement, taille des batchs et nombre de cœurs pour Spark
 
-`.env` is git-ignored. Only `.env.example` is committed.
+`.env` est ignoré par git. Seul `.env.example` est versionné.
 
-**Project structure:**
+**Structure du projet :**
 
 ```
-├── docker-compose.yml       all services (+ "tests" profile)
-├── .env.example             configuration template (copy to .env)
+├── docker-compose.yml       tous les services (+ profil "tests")
+├── .env.example             modèle de configuration (à copier en .env)
 ├── producer/                generator.py, producer.py, benchmark_load.py
-├── spark/                   transformations.py (logic), streaming_job.py (I/O + monitoring)
-├── sql/init.sql             Postgres tables, constraints, indexes, FX rates
-├── dbt/                     staging + marts models, data tests
+├── spark/                   transformations.py (logique), streaming_job.py (entrées/sorties + supervision)
+├── sql/init.sql             tables Postgres, contraintes, index, taux de change
+├── dbt/                     modèles staging + marts, tests de données
 ├── dashboard/               queries.py (SQL), theme.py (style), app.py (pages)
-├── .streamlit/config.toml   dashboard theme (at the root for Streamlit Cloud)
+├── .streamlit/config.toml   thème du tableau de bord (à la racine pour Streamlit Cloud)
 ├── tests/                   unit/, integration/, e2e/
-├── scripts/                 replay, benchmark, snapshot export, check queries
-├── benchmarks/              benchmark results (JSON)
-├── docs/                    PERFORMANCE.md, CHECKLIST.md, DEPLOYMENT.md
+├── scripts/                 rejeu, test de performance, export de la copie, requêtes de contrôle
+├── benchmarks/              résultats des tests de performance (JSON)
+├── docs/                    documentation en français (PERFORMANCE, CHECKLIST, DEPLOYMENT), en anglais dans docs/en/
+├── README.md                ce fichier (français) ; README.en.md en anglais
 └── .github/workflows/ci.yml
 ```
 
-## 14. Limitations & Future Improvements
+## 14. Limites et améliorations possibles
 
-| Limitation today | Possible improvement |
-|------------------|----------------------|
-| One Kafka broker and Spark in `local` mode | A Kafka cluster with replication and a real Spark cluster |
-| Each micro-batch is collected to the driver before writing | Write in parallel from the executors (`foreachPartition` or Postgres `COPY`) |
-| Fixed demo exchange rates | A daily FX feed, with rates that change over time |
-| JSON with the schema defined in code | Avro or Protobuf with a Schema Registry |
-| dbt tables are rebuilt in full every 30 s | Incremental dbt models |
-| Hard-coded rule thresholds | Thresholds tuned on data, or a real model trained and validated properly |
-| No alerts, only a dashboard | Alerts (for example e-mail or Slack) on high lag or a stalled pipeline |
-| CI is written but has not run yet | Push to GitHub so the workflow runs on every commit |
+| Limite actuelle | Amélioration possible |
+|-----------------|-----------------------|
+| Un seul broker Kafka et Spark en mode `local` | Un cluster Kafka avec réplication et un vrai cluster Spark |
+| Chaque micro-batch est rapatrié sur le driver avant l'écriture | Écrire en parallèle depuis les exécuteurs (`foreachPartition` ou `COPY` Postgres) |
+| Taux de change de démonstration fixes | Un flux de taux de change quotidien, avec des taux qui évoluent dans le temps |
+| JSON avec un schéma défini dans le code | Avro ou Protobuf avec un Schema Registry |
+| Les tables dbt sont entièrement reconstruites toutes les 30 s | Des modèles dbt incrémentaux |
+| Seuils des règles codés en dur | Des seuils ajustés sur les données, ou un vrai modèle entraîné et validé correctement |
+| Pas d'alertes, seulement un tableau de bord | Des alertes (par exemple e-mail ou Slack) en cas de retard élevé ou de pipeline bloqué |
 
-## 15. Skills Demonstrated
+## 15. Compétences démontrées
 
-- **Streaming data engineering:** Kafka topics and partitions, Spark Structured Streaming, event-time windows, watermarks, stateful deduplication, checkpoints.
-- **Data reliability:** idempotent writes, at-least-once vs exactly-once results, retries, crash recovery, replay, dead-letter handling.
-- **Data modelling:** PostgreSQL schema design with constraints and justified indexes, and dbt staging/mart layers with data tests.
-- **Data quality:** validation rules, schema evolution, currency normalisation, automated tests on the stored data.
-- **Testing:** unit, integration (streaming) and end-to-end tests, failure scenarios, and CI with GitHub Actions.
-- **Performance:** benchmarking up to 1M events, measuring throughput, latency, lag and resources, and finding bottlenecks.
-- **DevOps:** Docker Compose, configuration in environment variables, secrets kept out of git, reproducible setup.
-- **Data visualisation:** a structured, accessible live dashboard with Streamlit and Plotly.
-- **Communication:** documented decisions, trade-offs and limitations, written for other people to read.
+- **Data engineering en streaming :** topics et partitions Kafka, Spark Structured Streaming, fenêtres en temps d'événement, watermarks, dédoublonnage avec état, checkpoints.
+- **Fiabilité des données :** écritures idempotentes, « au moins une fois » et « exactement une fois », nouvelles tentatives, reprise après panne, rejeu, gestion des données rejetées.
+- **Modélisation des données :** conception d'un schéma PostgreSQL avec contraintes et index justifiés, couches staging/marts dbt avec tests de données.
+- **Qualité des données :** règles de validation, évolution du schéma, normalisation des devises, tests automatisés sur les données stockées.
+- **Tests :** tests unitaires, d'intégration (streaming) et de bout en bout, scénarios de panne, et intégration continue avec GitHub Actions.
+- **Performance :** tests jusqu'à 1 million d'événements, mesure du débit, de la latence, du retard et des ressources, et identification des goulots d'étranglement.
+- **DevOps :** Docker Compose, configuration par variables d'environnement, secrets hors de git, installation reproductible.
+- **Visualisation des données :** un tableau de bord en direct, structuré, accessible et adapté au mobile, avec Streamlit et Plotly.
+- **Communication :** choix, compromis et limites documentés, écrits pour être lus par d'autres personnes.

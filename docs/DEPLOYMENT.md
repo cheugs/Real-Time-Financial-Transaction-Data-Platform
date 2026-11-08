@@ -1,121 +1,124 @@
-# Putting the Dashboard Online (free)
+# Mettre le tableau de bord en ligne (gratuitement)
 
-**Live:** https://cheugs-txn-monitor.streamlit.app/
+**Français** · [English](en/DEPLOYMENT.md)
 
-The full pipeline (Kafka + Spark) needs about 4 GB of memory, which is more than free hosting
-offers. So the online version works like this:
+**En ligne :** https://cheugs-txn-monitor.streamlit.app/
+
+Le pipeline complet (Kafka + Spark) a besoin d'environ 4 Go de mémoire, ce qui dépasse ce que
+proposent les hébergements gratuits. La version en ligne fonctionne donc ainsi :
 
 ```
-your laptop: full pipeline ──snapshot──▶ Neon (free Postgres) ◀──reads── Streamlit Community Cloud (free)
+votre ordinateur : pipeline complet ──copie──▶ Neon (Postgres gratuit) ◀──lecture── Streamlit Community Cloud (gratuit)
 ```
 
-The online dashboard shows a **snapshot of a real pipeline run**. It runs in *demo mode*: a
-banner says when the snapshot was taken, and "last hour" is counted back from that moment.
+Le tableau de bord en ligne affiche une **copie d'une vraie exécution du pipeline**. Il tourne en
+*mode démo* : un bandeau indique quand la copie a été faite, et « la dernière heure » est comptée
+à partir de ce moment.
 
-You need about 30 minutes. Everything is free, and no credit card is needed.
+Il faut environ 30 minutes. Tout est gratuit, et aucune carte bancaire n'est demandée.
 
-> **Passwords:** the Neon password only goes into your terminal (step 3) and into the Streamlit
-> secrets screen (step 5). Never put it in a file in the repository.
+> **Mots de passe :** le mot de passe Neon va seulement dans votre terminal (étape 3) et dans
+> l'écran des secrets de Streamlit (étape 5). Ne le mettez jamais dans un fichier du dépôt.
 
 ---
 
-## Step 1: Put the project on GitHub
+## Étape 1 : Mettre le projet sur GitHub
 
-The project is already on GitHub:
+Le projet est déjà sur GitHub :
 https://github.com/cheugs/Real-Time-Financial-Transaction-Data-Platform
 
-`.env` (your local password) is in `.gitignore`, so it is not in the repository.
-After every push, the **Actions** tab runs the CI workflow by itself.
+`.env` (votre mot de passe local) est dans `.gitignore` : il n'est donc pas dans le dépôt.
+Après chaque push, l'onglet **Actions** lance automatiquement l'intégration continue (CI).
 
-## Step 2: Create a free database on Neon
+## Étape 2 : Créer une base de données gratuite sur Neon
 
-1. Go to https://neon.tech and sign up (you can use your GitHub account).
-2. Create a project. Name: `txn-monitor`. Postgres version: 16. Region: the one closest to you (for example *Europe (Frankfurt)*).
-3. On the project page, click **Connect**. Keep the default database (`neondb`), and copy the **connection string**. It looks like this:
+1. Allez sur https://neon.tech et créez un compte (vous pouvez utiliser votre compte GitHub).
+2. Créez un projet. Nom : `txn-monitor`. Version de Postgres : 16. Région : la plus proche de vous (par exemple *Europe (Frankfurt)*).
+3. Sur la page du projet, cliquez sur **Connect**. Gardez la base par défaut (`neondb`) et copiez la **chaîne de connexion**. Elle ressemble à ceci :
 
 ```
-postgresql://neondb_owner:PASSWORD@ep-something-123456.eu-central-1.aws.neon.tech/neondb?sslmode=require
+postgresql://neondb_owner:MOT-DE-PASSE@ep-quelquechose-123456.eu-central-1.aws.neon.tech/neondb?sslmode=require
 ```
 
-## Step 3: Copy a snapshot of your pipeline to Neon
+## Étape 3 : Copier une partie des données du pipeline vers Neon
 
-Let your local stack run normally for at least a few hours first (`docker compose up -d`), so
-there is enough data. Then, in PowerShell, in the project folder:
+Laissez d'abord tourner la chaîne locale normalement pendant au moins quelques heures
+(`docker compose up -d`), pour avoir assez de données. Ensuite, dans PowerShell, dans le dossier du projet :
 
 ```powershell
-$env:TARGET_DATABASE_URL = "PASTE-THE-NEON-CONNECTION-STRING-HERE"
+$env:TARGET_DATABASE_URL = "COLLEZ-ICI-LA-CHAINE-DE-CONNEXION-NEON"
 ```
 
 ```powershell
 .venv\Scripts\python scripts\export_snapshot.py --hours 6
 ```
 
-If your stack was stopped for a while (for example overnight), add `--from-latest`: the 6 hours
-are then counted back from the newest stored event instead of from now.
+Si la chaîne a été arrêtée un moment (par exemple pendant la nuit), ajoutez `--from-latest` : les
+6 heures sont alors comptées à partir de l'événement le plus récent stocké, et non à partir de maintenant.
 
-The script creates the tables on Neon, copies the last 6 hours of every table, saves the
-snapshot time, and runs dbt (models + 26 tests) on Neon. Six hours is about 110,000
-transactions, which is far below Neon's free storage limit.
+Le script crée les tables sur Neon, copie les 6 dernières heures de chaque table, enregistre
+l'heure de la copie et lance dbt (modèles + 26 tests) sur Neon. Six heures représentent environ
+110 000 transactions, bien en dessous de la limite de stockage gratuite de Neon.
 
-## Step 4 (recommended): A read-only user for the dashboard
+## Étape 4 (recommandée) : Un utilisateur en lecture seule pour le tableau de bord
 
-The website only needs to **read** data. In Neon, open the **SQL Editor** and run this,
-choosing your own password:
+Le site a seulement besoin de **lire** les données. Dans Neon, ouvrez le **SQL Editor** et lancez
+ceci, en choisissant votre propre mot de passe :
 
 ```sql
-create role dashboard_reader with login password 'CHOOSE-A-STRONG-PASSWORD';
+create role dashboard_reader with login password 'CHOISISSEZ-UN-MOT-DE-PASSE-SOLIDE';
 grant usage on schema public, analytics to dashboard_reader;
 grant select on all tables in schema public, analytics to dashboard_reader;
--- dbt re-creates the analytics tables, so new tables must be readable too:
+-- dbt recrée les tables analytics : les nouvelles tables doivent aussi être lisibles
 alter default privileges in schema analytics grant select on tables to dashboard_reader;
 ```
 
-## Step 5: Deploy the dashboard on Streamlit Community Cloud
+## Étape 5 : Déployer le tableau de bord sur Streamlit Community Cloud
 
-1. Go to https://share.streamlit.io and sign in with **GitHub**.
-2. Click **Create app** → **Deploy a public app from GitHub**.
-3. Fill in:
-   - Repository: `cheugs/Real-Time-Financial-Transaction-Data-Platform`
-   - Branch: `main`
-   - Main file path: `dashboard/app.py`
-   - App URL: choose a name, for example `txn-monitor-yourname`
-4. Click **Advanced settings**:
-   - Python version: **3.12**
-   - **Secrets**: paste this, with the values from Neon (use `dashboard_reader` if you did step 4):
+1. Allez sur https://share.streamlit.io et connectez-vous avec **GitHub**.
+2. Cliquez sur **Create app** → **Deploy a public app from GitHub**.
+3. Remplissez :
+   - Repository : `cheugs/Real-Time-Financial-Transaction-Data-Platform`
+   - Branch : `main`
+   - Main file path : `dashboard/app.py`
+   - App URL : choisissez un nom, par exemple `txn-monitor-votrenom`
+4. Cliquez sur **Advanced settings** :
+   - Python version : **3.12**
+   - **Secrets** : collez ceci avec les valeurs de Neon (utilisez `dashboard_reader` si vous avez fait l'étape 4) :
 
 ```toml
-PG_HOST = "ep-something-123456.eu-central-1.aws.neon.tech"
+PG_HOST = "ep-quelquechose-123456.eu-central-1.aws.neon.tech"
 PG_PORT = "5432"
 PG_DB = "neondb"
 PG_USER = "dashboard_reader"
-PG_PASSWORD = "THE-PASSWORD"
+PG_PASSWORD = "LE-MOT-DE-PASSE"
 PG_SSLMODE = "require"
 DEMO_MODE = "1"
 ```
 
-5. Click **Deploy**. After 2–3 minutes your dashboard is online at
-   `https://txn-monitor-yourname.streamlit.app`.
+5. Cliquez sur **Deploy**. Après 2 à 3 minutes, votre tableau de bord est en ligne sur
+   `https://txn-monitor-votrenom.streamlit.app`.
 
-## Step 6: Add the link to the README
+## Étape 6 : Ajouter le lien dans le README
 
-At the top of `README.md`, under the title, add:
+En haut de `README.md` (et de `README.en.md`), sous le titre, ajoutez :
 
 ```markdown
-**Live demo:** https://txn-monitor-yourname.streamlit.app
+**Démo en ligne :** https://txn-monitor-votrenom.streamlit.app
 ```
 
-Then commit and push. Streamlit Cloud updates the app on every push by itself.
+Ensuite, faites un commit et un push. Streamlit Cloud met l'application à jour automatiquement à chaque push.
 
 ---
 
-## Good to know
+## Bon à savoir
 
-- **Sleeping app:** free Streamlit apps go to sleep after some days without visitors. A visitor
-  then sees a "wake up" button, and the app is back after about a minute. Open the link yourself
-  before you send it to a recruiter.
-- **New snapshot:** run step 3 again at any time. The old snapshot is replaced.
-- **How demo mode works:** `DEMO_MODE=1` makes every time filter count back from
-  `demo_meta.snapshot_at` instead of `now()`, and moves the displayed times forward so the
-  newest data shows as "now" (a banner says so). See `dashboard/queries.py`. All times are
-  in UTC. The local Docker version does not set `DEMO_MODE`, so it stays live.
-- **Something wrong?** In Streamlit Cloud, open your app → **Manage app** (bottom right) to see the logs.
+- **Application en veille :** les applications Streamlit gratuites se mettent en veille après
+  quelques jours sans visite. Un visiteur voit alors un bouton pour la réveiller, et l'application
+  revient après environ une minute. Ouvrez le lien vous-même avant de l'envoyer à un recruteur.
+- **Nouvelle copie :** relancez l'étape 3 quand vous voulez. L'ancienne copie est remplacée.
+- **Fonctionnement du mode démo :** `DEMO_MODE=1` fait compter chaque filtre de temps à partir de
+  `demo_meta.snapshot_at` au lieu de `now()`, et avance les heures affichées pour que les données
+  les plus récentes apparaissent comme « maintenant » (un bandeau le dit). Voir `dashboard/queries.py`.
+  Toutes les heures sont en UTC. La version Docker locale ne définit pas `DEMO_MODE` : elle reste en direct.
+- **Un problème ?** Dans Streamlit Cloud, ouvrez votre application → **Manage app** (en bas à droite) pour voir les logs.
